@@ -232,13 +232,16 @@ function renderTable() {
         <td>${escapeHtml(d.amount || "—")}</td>
         <td><span class="badge">${escapeHtml(stage ? stage.name : "—")}</span></td>
         <td>${d.files.length}</td>
-        <td><span class="row-arrow">→</span></td>
+        <td><button type="button" class="btn btn-secondary btn-small row-open" data-id="${d.id}">Открыть →</button></td>
       </tr>`;
     })
     .join("");
 
-  $$("#docsBody tr").forEach((tr) => {
-    tr.addEventListener("click", () => openCard(Number(tr.dataset.id)));
+  $$("#docsBody .row-open").forEach((btn) => {
+    btn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      openCard(Number(btn.dataset.id));
+    });
   });
 
   $("#emptyState").style.display = rows.length ? "none" : "block";
