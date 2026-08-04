@@ -76,7 +76,7 @@
           <input type="text" id="fTypeInput" style="display:none">
         </div>
       </label>
-      <label>Имя документа (номер) <input id="fNumber" type="text" placeholder="например: 2594"></label>
+      <label>Номер документа <input id="fNumber" type="text" placeholder="например: 2594"></label>
 
       <label class="full">Контрагент
         <div class="combo">
@@ -89,8 +89,9 @@
       <label class="full">Комментарий <textarea id="fComment" rows="2"></textarea></label>
     </div>
     <div class="modal-actions">
+      <span id="saveHint" class="muted" style="margin-right:auto">Чтобы сохранить: прикрепите файл, укажите вид и номер документа</span>
       <button class="btn btn-secondary" id="btnDocCancel">Отмена</button>
-      <button class="btn btn-primary" id="btnDocSave">Сохранить</button>
+      <button class="btn btn-primary" id="btnDocSave" disabled>Сохранить</button>
     </div>
   </div>
 </div>
