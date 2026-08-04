@@ -4,77 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Реестр учёта первичных документов</title>
-<style>
-:root {
-  --bg: #f4f5f7;
-  --panel: #ffffff;
-  --border: #e2e4e9;
-  --text: #23262f;
-  --muted: #6b7280;
-  --primary: #2f6fed;
-  --primary-dark: #1f52c0;
-  --danger: #d64545;
-  --radius: 10px;
-}
-* { box-sizing: border-box; }
-body { margin: 0; font-family: -apple-system, "Segoe UI", Roboto, Arial, sans-serif; background: var(--bg); color: var(--text); }
-.topbar { display: flex; align-items: center; justify-content: space-between; padding: 16px 28px; background: var(--panel); border-bottom: 1px solid var(--border); flex-wrap: wrap; gap: 10px; }
-.topbar h1 { font-size: 20px; margin: 0; }
-.topbar-actions { display: flex; gap: 10px; align-items: center; }
-.folder-status { font-size: 13px; color: var(--muted); }
-main { padding: 20px 28px 60px; }
-.toolbar { display: flex; gap: 10px; margin-bottom: 14px; }
-.toolbar input, .toolbar select { padding: 9px 12px; border: 1px solid var(--border); border-radius: var(--radius); font-size: 14px; }
-.toolbar input { flex: 1; }
-.btn { border: none; border-radius: var(--radius); padding: 9px 16px; font-size: 14px; cursor: pointer; font-weight: 500; }
-.btn-primary { background: var(--primary); color: #fff; }
-.btn-primary:hover { background: var(--primary-dark); }
-.btn-secondary { background: #edeef2; color: var(--text); }
-.btn-secondary:hover { background: #dfe1e8; }
-.btn-danger { background: #fde8e8; color: var(--danger); }
-.btn-danger:hover { background: #f9caca; }
-.btn-small { padding: 6px 10px; font-size: 13px; }
-.btn:disabled { opacity: 0.5; cursor: not-allowed; }
-.registry-table, .files-table { width: 100%; border-collapse: collapse; background: var(--panel); border-radius: var(--radius); overflow: hidden; }
-.registry-table th, .registry-table td, .files-table th, .files-table td { padding: 10px 12px; border-bottom: 1px solid var(--border); text-align: left; font-size: 14px; }
-.registry-table th, .files-table th { background: #fafbfc; color: var(--muted); font-weight: 600; font-size: 12px; text-transform: uppercase; letter-spacing: 0.03em; }
-.registry-table tbody tr { cursor: pointer; }
-.registry-table tbody tr:hover { background: #f7f9fe; }
-.badge { display: inline-block; padding: 3px 10px; border-radius: 999px; background: #e8f0fe; color: var(--primary-dark); font-size: 12px; font-weight: 600; }
-.empty-state { text-align: center; color: var(--muted); padding: 60px 20px; }
-.gate { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 16px; padding: 120px 20px; text-align: center; }
-.gate p { max-width: 480px; color: var(--muted); margin: 0; }
-.modal-overlay { display: none; position: fixed; inset: 0; background: rgba(20, 22, 30, 0.45); align-items: flex-start; justify-content: center; padding: 40px 16px; overflow-y: auto; z-index: 100; }
-.modal-overlay.open { display: flex; }
-.modal { background: var(--panel); border-radius: 14px; padding: 24px 26px; width: 100%; max-width: 480px; box-shadow: 0 20px 60px rgba(0,0,0,0.2); }
-.modal-wide { max-width: 720px; }
-.modal h2 { margin-top: 0; font-size: 18px; }
-.modal h3 { font-size: 14px; color: var(--muted); margin: 0 0 10px; }
-.modal-header-row { display: flex; align-items: center; justify-content: space-between; }
-.form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 14px; }
-.form-grid label.full { grid-column: 1 / -1; }
-.form-grid label { display: flex; flex-direction: column; font-size: 12px; color: var(--muted); gap: 4px; }
-.form-grid input, .form-grid textarea { padding: 8px 10px; border: 1px solid var(--border); border-radius: 8px; font-size: 14px; font-family: inherit; color: var(--text); }
-.modal-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 20px; }
-.card-section { border-top: 1px solid var(--border); padding-top: 14px; margin-top: 14px; }
-.card-section:first-of-type { border-top: none; margin-top: 10px; }
-.advance-form, .attach-form { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; align-items: end; }
-.attach-form { grid-template-columns: 1fr 1fr auto; }
-.advance-form label, .attach-form label { display: flex; flex-direction: column; font-size: 12px; color: var(--muted); gap: 4px; }
-.advance-form input, .advance-form select, .attach-form input { padding: 7px 9px; border: 1px solid var(--border); border-radius: 8px; font-size: 13px; }
-.advance-form button { grid-column: 1 / -1; }
-.stages-list { display: flex; flex-direction: column; gap: 8px; margin-top: 10px; }
-.stage-row { display: flex; align-items: center; gap: 8px; padding: 6px 8px; border: 1px solid var(--border); border-radius: 8px; }
-.stage-row input { flex: 1; border: none; background: transparent; font-size: 14px; }
-.stage-row input:focus { outline: 1px solid var(--primary); border-radius: 4px; }
-.stage-order { color: var(--muted); font-size: 12px; width: 20px; }
-.stage-add-form { display: flex; gap: 8px; margin-top: 12px; }
-.stage-add-form input { flex: 1; padding: 8px 10px; border: 1px solid var(--border); border-radius: 8px; }
-.file-link { color: var(--primary); text-decoration: none; cursor: pointer; }
-.file-link:hover { text-decoration: underline; }
-.muted { color: var(--muted); font-size: 13px; }
-.warn-banner { background: #fff4e5; color: #8a5a00; padding: 10px 16px; font-size: 13px; border-bottom: 1px solid #f0d9a8; }
-</style>
+<link rel="stylesheet" href="css/style.css">
 </head>
 <body>
 
@@ -89,6 +19,7 @@ main { padding: 20px 28px 60px; }
   <div class="topbar-actions">
     <span id="folderStatus" class="folder-status">Папка не подключена</span>
     <button id="btnConnect" class="btn btn-secondary">Подключить папку</button>
+    <button id="btnCatalogs" class="btn btn-secondary" disabled>Справочники</button>
     <button id="btnStages" class="btn btn-secondary" disabled>Стадии</button>
     <button id="btnAdd" class="btn btn-primary" disabled>+ Добавить документ</button>
   </div>
@@ -97,10 +28,10 @@ main { padding: 20px 28px 60px; }
 <div id="gate" class="gate">
   <h2>Подключите папку на диске</h2>
   <p>
-    Всё приложение — один файл <code>index.html</code>, без сервера и установки.
+    Всё приложение — набор локальных файлов, без сервера и установки.
     Но для сохранения документов и версий файлов на диск браузеру нужно один раз
-    разрешить доступ к папке — например, той же, где лежит этот файл. Дальше
-    всё будет сохраняться прямо туда, в корень: файл реестра <code>registry.json</code>
+    разрешить доступ к папке. Дальше всё будет сохраняться прямо туда, в корень:
+    файл реестра <code>registry.json</code>, справочники <code>config.json</code>
     и сами вложения.
   </p>
   <button id="btnConnectGate" class="btn btn-primary">Выбрать папку</button>
@@ -108,15 +39,15 @@ main { padding: 20px 28px 60px; }
 
 <main id="mainApp" style="display:none">
   <div class="toolbar">
-    <input type="text" id="search" placeholder="Поиск по номеру, наименованию, контрагенту...">
+    <input type="text" id="search" placeholder="Поиск по имени документа, виду, контрагенту...">
     <select id="filterStage"><option value="">Все стадии</option></select>
   </div>
 
   <table class="registry-table">
     <thead>
       <tr>
-        <th>№</th><th>Дата</th><th>Вид документа</th><th>Наименование</th>
-        <th>Контрагент</th><th>Сумма</th><th>Стадия</th><th>Файлы</th><th></th>
+        <th>Документ</th><th>Вид</th><th>Контрагент</th><th>Сумма</th>
+        <th>Стадия</th><th>Файлы</th><th></th>
       </tr>
     </thead>
     <tbody id="docsBody"></tbody>
@@ -131,15 +62,30 @@ main { padding: 20px 28px 60px; }
   <div class="modal">
     <h2 id="modalDocTitle">Новый документ</h2>
     <div class="form-grid">
-      <label>№ документа <input id="fNumber" type="text"></label>
+      <label>Вид документа
+        <select id="fType"></select>
+      </label>
+      <div class="inline-add full" id="fTypeNew" style="display:none">
+        <input type="text" id="fTypeNewName" placeholder="Название вида">
+        <input type="text" id="fTypeNewPrefix" placeholder="Префикс (напр. УПД)">
+        <button type="button" id="fTypeNewAdd" class="btn btn-secondary btn-small">Добавить вид</button>
+      </div>
+
+      <label>Имя документа (номер) <input id="fNumber" type="text" placeholder="например: 2594"></label>
       <label>Дата <input id="fDate" type="date"></label>
-      <label>Вид документа <input id="fType" type="text" placeholder="Акт, накладная, счёт..."></label>
-      <label>Наименование <input id="fTitle" type="text" required></label>
-      <label>Контрагент <input id="fCounterparty" type="text"></label>
+
+      <label>Контрагент
+        <select id="fCounterparty"></select>
+      </label>
+      <div class="inline-add full" id="fCounterpartyNew" style="display:none">
+        <input type="text" id="fCounterpartyNewName" placeholder="Название контрагента">
+        <button type="button" id="fCounterpartyNewAdd" class="btn btn-secondary btn-small">Добавить контрагента</button>
+      </div>
+
       <label>Сумма <input id="fAmount" type="text"></label>
       <label class="full">Комментарий <textarea id="fComment" rows="2"></textarea></label>
       <label class="full">Прикрепить файл (можно сразу, можно позже) <input type="file" id="fFile"></label>
-      <label class="full">Имя файла (как подписать) <input type="text" id="fFileName" placeholder="например: Акт исходный скан"></label>
+      <p class="full muted">Имя файла подписывать не нужно — оно соберётся автоматически из вида, номера и даты (например «УПД №2594 от 31.07.26»).</p>
     </div>
     <div class="modal-actions">
       <button class="btn btn-secondary" id="btnDocCancel">Отмена</button>
@@ -152,7 +98,10 @@ main { padding: 20px 28px 60px; }
 <div class="modal-overlay" id="modalCard">
   <div class="modal modal-wide">
     <div class="modal-header-row">
-      <h2 id="cardTitle">Документ</h2>
+      <div>
+        <h2 id="cardTitle">Документ</h2>
+        <div id="cardMeta" class="muted"></div>
+      </div>
       <button class="btn btn-danger btn-small" id="btnDeleteDoc">Удалить документ</button>
     </div>
 
@@ -165,10 +114,7 @@ main { padding: 20px 28px 60px; }
         <label>Приложить файл новой версии (необязательно)
           <input type="file" id="advanceFile">
         </label>
-        <label>Имя файла (как подписать)
-          <input type="text" id="advanceFileName" placeholder="например: Акт сверки подписанный">
-        </label>
-        <label>Примечание
+        <label class="full">Примечание
           <input type="text" id="advanceNote" placeholder="комментарий к переходу">
         </label>
         <button type="submit" class="btn btn-primary">Перевести на стадию</button>
@@ -179,7 +125,6 @@ main { padding: 20px 28px 60px; }
       <h3>Прикрепить файл (без смены стадии)</h3>
       <form id="attachForm" class="attach-form">
         <input type="file" id="attachFile" required>
-        <input type="text" id="attachFileName" placeholder="Имя файла (как подписать)" required>
         <button type="submit" class="btn btn-secondary">Прикрепить</button>
       </form>
     </section>
@@ -222,631 +167,39 @@ main { padding: 20px 28px 60px; }
   </div>
 </div>
 
-<script>
-"use strict";
-
-/* =========================================================================
-   Реестр учёта первичных документов — полностью в браузере.
-   Данные (метаданные) хранятся в файле registry.json в выбранной папке.
-   Вложения хранятся плоско, в той же папке ("в корне"), под именами,
-   которые вы задаёте при загрузке. Старые версии не перезаписываются —
-   каждая новая версия получает новое имя файла и остаётся на диске,
-   пока вы не удалите её явно кнопкой в интерфейсе.
-   ========================================================================= */
-
-const REGISTRY_FILE = "registry.json";
-const DB_NAME = "doc-registry-fsa";
-const DB_STORE = "handles";
-const HANDLE_KEY = "rootDir";
-
-let dirHandle = null;
-let state = null; // { nextDocId, nextFileId, nextStageId, stages: [], documents: [] }
-let currentDocId = null;
-
-const $ = (sel) => document.querySelector(sel);
-const $$ = (sel) => document.querySelectorAll(sel);
-
-function escapeHtml(str) {
-  const div = document.createElement("div");
-  div.textContent = str ?? "";
-  return div.innerHTML;
-}
-
-function nowIso() {
-  const d = new Date();
-  const pad = (n) => String(n).padStart(2, "0");
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
-}
-
-function sanitizeFilename(name) {
-  name = (name || "").normalize("NFKC").trim();
-  name = name.replace(/[\\/:*?"<>|]+/g, "_").replace(/\s+/g, " ");
-  return name.slice(0, 150) || "файл";
-}
-
-/* -------------------------------------------------------------------------
-   IndexedDB — хранение хэндла папки между запусками
-   ------------------------------------------------------------------------- */
-
-function idbOpen() {
-  return new Promise((resolve, reject) => {
-    const req = indexedDB.open(DB_NAME, 1);
-    req.onupgradeneeded = () => req.result.createObjectStore(DB_STORE);
-    req.onsuccess = () => resolve(req.result);
-    req.onerror = () => reject(req.error);
-  });
-}
-
-async function idbSet(key, value) {
-  const db = await idbOpen();
-  return new Promise((resolve, reject) => {
-    const tx = db.transaction(DB_STORE, "readwrite");
-    tx.objectStore(DB_STORE).put(value, key);
-    tx.oncomplete = () => resolve();
-    tx.onerror = () => reject(tx.error);
-  });
-}
-
-async function idbGet(key) {
-  const db = await idbOpen();
-  return new Promise((resolve, reject) => {
-    const tx = db.transaction(DB_STORE, "readonly");
-    const req = tx.objectStore(DB_STORE).get(key);
-    req.onsuccess = () => resolve(req.result || null);
-    req.onerror = () => reject(req.error);
-  });
-}
-
-/* -------------------------------------------------------------------------
-   Работа с папкой и файлом реестра
-   ------------------------------------------------------------------------- */
-
-async function verifyPermission(handle, readwrite) {
-  const opts = {};
-  if (readwrite) opts.mode = "readwrite";
-  if ((await handle.queryPermission(opts)) === "granted") return true;
-  if ((await handle.requestPermission(opts)) === "granted") return true;
-  return false;
-}
-
-function defaultState() {
-  const stages = ["Получен", "На проверке", "Утверждён", "В архиве"]
-    .map((name, i) => ({ id: i + 1, name, order_index: i }));
-  return { nextDocId: 1, nextFileId: 1, nextStageId: stages.length + 1, stages, documents: [] };
-}
-
-async function loadState() {
-  try {
-    const fh = await dirHandle.getFileHandle(REGISTRY_FILE, { create: false });
-    const file = await fh.getFile();
-    const text = await file.text();
-    state = JSON.parse(text);
-  } catch (e) {
-    state = defaultState();
-    await saveState();
-  }
-}
-
-async function saveState() {
-  const fh = await dirHandle.getFileHandle(REGISTRY_FILE, { create: true });
-  const writable = await fh.createWritable();
-  await writable.write(JSON.stringify(state, null, 2));
-  await writable.close();
-}
-
-async function connectFolder() {
-  try {
-    dirHandle = await window.showDirectoryPicker({ mode: "readwrite" });
-  } catch (e) {
-    return; // пользователь отменил выбор
-  }
-  await idbSet(HANDLE_KEY, dirHandle);
-  await loadState();
-  enterApp();
-}
-
-async function tryRestoreFolder() {
-  let handle;
-  try {
-    handle = await idbGet(HANDLE_KEY);
-  } catch (e) {
-    handle = null;
-  }
-  if (!handle) return false;
-  const ok = await verifyPermissionSilent(handle);
-  if (!ok) {
-    // Разрешение придётся подтвердить кликом — покажем кнопку восстановления
-    dirHandle = handle;
-    $("#folderStatus").textContent = "Доступ к папке нужно подтвердить";
-    $("#btnConnect").textContent = "Подтвердить доступ к папке";
-    return false;
-  }
-  dirHandle = handle;
-  await loadState();
-  enterApp();
-  return true;
-}
-
-async function verifyPermissionSilent(handle) {
-  try {
-    return (await handle.queryPermission({ mode: "readwrite" })) === "granted";
-  } catch (e) {
-    return false;
-  }
-}
-
-function enterApp() {
-  $("#gate").style.display = "none";
-  $("#mainApp").style.display = "block";
-  $("#btnStages").disabled = false;
-  $("#btnAdd").disabled = false;
-  $("#folderStatus").textContent = "Папка подключена: " + (dirHandle.name || "");
-  $("#btnConnect").textContent = "Сменить папку";
-  renderStagesSelects();
-  renderTable();
-}
-
-/* -------------------------------------------------------------------------
-   Вспомогательные операции над state
-   ------------------------------------------------------------------------- */
-
-function getStage(id) {
-  return state.stages.find((s) => s.id === id) || null;
-}
-
-function orderedStages() {
-  return [...state.stages].sort((a, b) => a.order_index - b.order_index);
-}
-
-function getNextStage(currentStageId) {
-  const ordered = orderedStages();
-  const idx = ordered.findIndex((s) => s.id === currentStageId);
-  if (idx === -1 || idx === ordered.length - 1) return null;
-  return ordered[idx + 1];
-}
-
-function allUsedFilenames() {
-  const used = new Set();
-  for (const doc of state.documents) {
-    for (const f of doc.files) used.add(f.stored_filename);
-  }
-  return used;
-}
-
-function uniqueStoredName(base, ext) {
-  const used = allUsedFilenames();
-  let candidate = `${base}${ext}`;
-  let i = 2;
-  while (used.has(candidate)) {
-    candidate = `${base} (${i})${ext}`;
-    i += 1;
-  }
-  return candidate;
-}
-
-async function writeFileToRoot(file, storedName) {
-  const fh = await dirHandle.getFileHandle(storedName, { create: true });
-  const writable = await fh.createWritable();
-  await writable.write(await file.arrayBuffer());
-  await writable.close();
-}
-
-async function attachFileToDoc(doc, file, customName, stageId) {
-  const ext = (file.name.match(/\.[^./\\]+$/) || [""])[0];
-  const label = sanitizeFilename(customName || file.name.replace(/\.[^./\\]+$/, ""));
-  const version = doc.files.reduce((m, f) => Math.max(m, f.version), 0) + 1;
-  const base = `${label} v${version}`;
-  const storedName = uniqueStoredName(base, ext);
-
-  await writeFileToRoot(file, storedName);
-
-  const fileEntry = {
-    id: state.nextFileId++,
-    version,
-    custom_name: label,
-    stored_filename: storedName,
-    original_filename: file.name,
-    stage_id: stageId,
-    uploaded_at: nowIso(),
-  };
-  doc.files.push(fileEntry);
-  doc.updated_at = nowIso();
-  return fileEntry;
-}
-
-async function deleteFileEntry(doc, fileId) {
-  const idx = doc.files.findIndex((f) => f.id === fileId);
-  if (idx === -1) return;
-  const [entry] = doc.files.splice(idx, 1);
-  try {
-    await dirHandle.removeEntry(entry.stored_filename);
-  } catch (e) {
-    // файла уже нет на диске — не страшно, просто убираем запись
-  }
-  await saveState();
-}
-
-/* -------------------------------------------------------------------------
-   Таблица документов
-   ------------------------------------------------------------------------- */
-
-function renderStagesSelects() {
-  const stages = orderedStages();
-  $("#filterStage").innerHTML =
-    '<option value="">Все стадии</option>' +
-    stages.map((s) => `<option value="${s.id}">${escapeHtml(s.name)}</option>`).join("");
-}
-
-function renderTable() {
-  const search = $("#search").value.trim().toLowerCase();
-  const stageFilter = $("#filterStage").value;
-
-  let rows = state.documents.filter((d) => {
-    if (stageFilter && String(d.stage_id) !== stageFilter) return false;
-    if (!search) return true;
-    const hay = [d.number, d.title, d.counterparty, d.doc_type].join(" ").toLowerCase();
-    return hay.includes(search);
-  });
-  rows = [...rows].sort((a, b) => (b.updated_at || "").localeCompare(a.updated_at || ""));
-
-  const body = $("#docsBody");
-  body.innerHTML = rows
-    .map((d) => {
-      const stage = getStage(d.stage_id);
-      return `
-      <tr data-id="${d.id}">
-        <td>${escapeHtml(d.number || "—")}</td>
-        <td>${escapeHtml(d.doc_date || "—")}</td>
-        <td>${escapeHtml(d.doc_type || "—")}</td>
-        <td>${escapeHtml(d.title)}</td>
-        <td>${escapeHtml(d.counterparty || "—")}</td>
-        <td>${escapeHtml(d.amount || "—")}</td>
-        <td><span class="badge">${escapeHtml(stage ? stage.name : "—")}</span></td>
-        <td>${d.files.length}</td>
-        <td>→</td>
-      </tr>`;
-    })
-    .join("");
-
-  $$("#docsBody tr").forEach((tr) => {
-    tr.addEventListener("click", () => openCard(Number(tr.dataset.id)));
-  });
-
-  $("#emptyState").style.display = rows.length ? "none" : "block";
-}
-
-$("#search").addEventListener("input", renderTable);
-$("#filterStage").addEventListener("change", renderTable);
-
-/* -------------------------------------------------------------------------
-   Добавление / редактирование документа
-   ------------------------------------------------------------------------- */
-
-$("#btnAdd").addEventListener("click", () => {
-  $("#modalDocTitle").textContent = "Новый документ";
-  ["fNumber", "fDate", "fType", "fTitle", "fCounterparty", "fAmount", "fComment", "fFileName"].forEach((id) => ($("#" + id).value = ""));
-  $("#fFile").value = "";
-  $("#modalDoc").dataset.mode = "create";
-  $("#modalDoc").classList.add("open");
-});
-
-$("#btnDocCancel").addEventListener("click", () => $("#modalDoc").classList.remove("open"));
-
-$("#btnDocSave").addEventListener("click", async () => {
-  const payload = {
-    number: $("#fNumber").value,
-    doc_date: $("#fDate").value,
-    doc_type: $("#fType").value,
-    title: $("#fTitle").value,
-    counterparty: $("#fCounterparty").value,
-    amount: $("#fAmount").value,
-    comment: $("#fComment").value,
-  };
-  if (!payload.title.trim()) {
-    alert("Укажите наименование документа");
-    return;
-  }
-
-  const mode = $("#modalDoc").dataset.mode;
-  let doc;
-  if (mode === "edit") {
-    doc = state.documents.find((d) => d.id === currentDocId);
-    Object.assign(doc, payload);
-    doc.updated_at = nowIso();
-  } else {
-    const firstStage = orderedStages()[0];
-    if (!firstStage) {
-      alert("Нет ни одной стадии. Создайте стадию сначала.");
-      return;
-    }
-    const ts = nowIso();
-    doc = {
-      id: state.nextDocId++,
-      ...payload,
-      stage_id: firstStage.id,
-      created_at: ts,
-      updated_at: ts,
-      files: [],
-      history: [{ stage_id: firstStage.id, note: "Документ создан", changed_at: ts }],
-    };
-    state.documents.push(doc);
-  }
-
-  const fileInput = $("#fFile");
-  if (fileInput.files[0]) {
-    const customName = $("#fFileName").value || fileInput.files[0].name;
-    await attachFileToDoc(doc, fileInput.files[0], customName, doc.stage_id);
-  }
-
-  await saveState();
-  $("#modalDoc").classList.remove("open");
-  renderTable();
-  if (mode === "edit") openCard(currentDocId);
-});
-
-/* -------------------------------------------------------------------------
-   Карточка документа
-   ------------------------------------------------------------------------- */
-
-function openCard(id) {
-  currentDocId = id;
-  const doc = state.documents.find((d) => d.id === id);
-  if (!doc) return;
-  renderCard(doc);
-  $("#modalCard").classList.add("open");
-}
-
-function renderCard(doc) {
-  const stage = getStage(doc.stage_id);
-  $("#cardTitle").textContent = `${doc.title} ${doc.number ? "· № " + doc.number : ""}`;
-  $("#cardStage").textContent = stage ? stage.name : "—";
-
-  const stages = orderedStages();
-  $("#advanceTarget").innerHTML = stages
-    .map((s) => `<option value="${s.id}" ${s.id === doc.stage_id ? "selected" : ""}>${escapeHtml(s.name)}</option>`)
-    .join("");
-  const nextStage = getNextStage(doc.stage_id);
-  if (nextStage) $("#advanceTarget").value = nextStage.id;
-
-  $("#advanceFile").value = "";
-  $("#advanceFileName").value = "";
-  $("#advanceNote").value = "";
-  $("#attachFile").value = "";
-  $("#attachFileName").value = "";
-
-  const filesSorted = [...doc.files].sort((a, b) => b.version - a.version);
-  const filesBody = $("#filesBody");
-  if (!filesSorted.length) {
-    filesBody.innerHTML = `<tr><td colspan="5" class="muted">Файлов пока нет</td></tr>`;
-  } else {
-    filesBody.innerHTML = filesSorted
-      .map((f) => {
-        const fStage = getStage(f.stage_id);
-        return `
-        <tr>
-          <td>v${f.version}</td>
-          <td><a class="file-link" data-file="${f.stored_filename}">${escapeHtml(f.custom_name)}</a></td>
-          <td>${escapeHtml(fStage ? fStage.name : "—")}</td>
-          <td>${escapeHtml(f.uploaded_at)}</td>
-          <td><button class="btn btn-danger btn-small" data-del-file="${f.id}">Удалить</button></td>
-        </tr>`;
-      })
-      .join("");
-
-    filesBody.querySelectorAll("a[data-file]").forEach((a) => {
-      a.addEventListener("click", async (e) => {
-        e.preventDefault();
-        try {
-          const fh = await dirHandle.getFileHandle(a.dataset.file, { create: false });
-          const file = await fh.getFile();
-          const url = URL.createObjectURL(file);
-          window.open(url, "_blank");
-        } catch (err) {
-          alert("Файл не найден на диске (возможно, был удалён или перемещён вручную).");
-        }
-      });
-    });
-
-    filesBody.querySelectorAll("button[data-del-file]").forEach((btn) => {
-      btn.addEventListener("click", async () => {
-        if (!confirm("Удалить эту версию файла безвозвратно (и с диска тоже)?")) return;
-        await deleteFileEntry(doc, Number(btn.dataset.delFile));
-        renderCard(doc);
-        renderTable();
-      });
-    });
-  }
-
-  const historyBody = $("#historyBody");
-  historyBody.innerHTML =
-    doc.history
-      .map((h) => {
-        const hStage = getStage(h.stage_id);
-        return `<tr><td>${escapeHtml(h.changed_at)}</td><td><span class="badge">${escapeHtml(hStage ? hStage.name : "—")}</span></td><td>${escapeHtml(h.note || "")}</td></tr>`;
-      })
-      .join("") || `<tr><td colspan="3" class="muted">Нет записей</td></tr>`;
-}
-
-$("#btnCardClose").addEventListener("click", () => $("#modalCard").classList.remove("open"));
-
-$("#btnEditDoc").addEventListener("click", () => {
-  const doc = state.documents.find((d) => d.id === currentDocId);
-  $("#modalDocTitle").textContent = "Редактировать документ";
-  $("#fNumber").value = doc.number || "";
-  $("#fDate").value = doc.doc_date || "";
-  $("#fType").value = doc.doc_type || "";
-  $("#fTitle").value = doc.title || "";
-  $("#fCounterparty").value = doc.counterparty || "";
-  $("#fAmount").value = doc.amount || "";
-  $("#fComment").value = doc.comment || "";
-  $("#fFile").value = "";
-  $("#fFileName").value = "";
-  $("#modalDoc").dataset.mode = "edit";
-  $("#modalDoc").classList.add("open");
-});
-
-$("#btnDeleteDoc").addEventListener("click", async () => {
-  if (!confirm("Удалить документ из реестра? (файлы на диске останутся, если явно их не удаляли)")) return;
-  state.documents = state.documents.filter((d) => d.id !== currentDocId);
-  await saveState();
-  $("#modalCard").classList.remove("open");
-  renderTable();
-});
-
-$("#advanceForm").addEventListener("submit", async (e) => {
-  e.preventDefault();
-  const doc = state.documents.find((d) => d.id === currentDocId);
-  const targetStageId = Number($("#advanceTarget").value);
-  const note = $("#advanceNote").value;
-  const fileInput = $("#advanceFile");
-
-  if (fileInput.files[0]) {
-    const customName = $("#advanceFileName").value || fileInput.files[0].name;
-    await attachFileToDoc(doc, fileInput.files[0], customName, targetStageId);
-  }
-
-  doc.stage_id = targetStageId;
-  doc.updated_at = nowIso();
-  doc.history.push({ stage_id: targetStageId, note, changed_at: nowIso() });
-
-  await saveState();
-  renderTable();
-  openCard(currentDocId);
-});
-
-$("#attachForm").addEventListener("submit", async (e) => {
-  e.preventDefault();
-  const doc = state.documents.find((d) => d.id === currentDocId);
-  const fileInput = $("#attachFile");
-  if (!fileInput.files[0]) return;
-  const customName = $("#attachFileName").value || fileInput.files[0].name;
-  await attachFileToDoc(doc, fileInput.files[0], customName, doc.stage_id);
-  await saveState();
-  renderTable();
-  openCard(currentDocId);
-});
-
-/* -------------------------------------------------------------------------
-   Управление стадиями
-   ------------------------------------------------------------------------- */
-
-$("#btnStages").addEventListener("click", () => {
-  renderStagesList();
-  $("#modalStages").classList.add("open");
-});
-
-$("#btnStagesClose").addEventListener("click", async () => {
-  $("#modalStages").classList.remove("open");
-  await saveState();
-  renderStagesSelects();
-  renderTable();
-});
-
-function renderStagesList() {
-  const stages = orderedStages();
-  const list = $("#stagesList");
-  list.innerHTML = stages
-    .map(
-      (s, i) => `
-    <div class="stage-row" data-id="${s.id}">
-      <span class="stage-order">${i + 1}</span>
-      <input type="text" value="${escapeHtml(s.name)}" data-id="${s.id}">
-      <button class="btn btn-secondary btn-small" data-up="${s.id}" ${i === 0 ? "disabled" : ""}>↑</button>
-      <button class="btn btn-secondary btn-small" data-down="${s.id}" ${i === stages.length - 1 ? "disabled" : ""}>↓</button>
-      <button class="btn btn-danger btn-small" data-del="${s.id}">✕</button>
-    </div>`
-    )
-    .join("");
-
-  list.querySelectorAll("input[data-id]").forEach((inp) => {
-    inp.addEventListener("change", async () => {
-      const stage = getStage(Number(inp.dataset.id));
-      stage.name = inp.value;
-      await saveState();
-    });
-  });
-
-  list.querySelectorAll("button[data-up]").forEach((btn) => {
-    btn.addEventListener("click", () => moveStage(Number(btn.dataset.up), -1));
-  });
-  list.querySelectorAll("button[data-down]").forEach((btn) => {
-    btn.addEventListener("click", () => moveStage(Number(btn.dataset.down), 1));
-  });
-  list.querySelectorAll("button[data-del]").forEach((btn) => {
-    btn.addEventListener("click", async () => {
-      const id = Number(btn.dataset.del);
-      if (state.documents.some((d) => d.stage_id === id)) {
-        alert("Стадия используется документами, удалить нельзя");
-        return;
-      }
-      if (!confirm("Удалить эту стадию?")) return;
-      state.stages = state.stages.filter((s) => s.id !== id);
-      await saveState();
-      renderStagesList();
-    });
-  });
-}
-
-async function moveStage(id, dir) {
-  const stages = orderedStages();
-  const idx = stages.findIndex((s) => s.id === id);
-  const newIdx = idx + dir;
-  if (newIdx < 0 || newIdx >= stages.length) return;
-  [stages[idx].order_index, stages[newIdx].order_index] = [stages[newIdx].order_index, stages[idx].order_index];
-  await saveState();
-  renderStagesList();
-}
-
-$("#stageAddForm").addEventListener("submit", async (e) => {
-  e.preventDefault();
-  const input = $("#newStageName");
-  const name = input.value.trim();
-  if (!name) return;
-  const maxOrder = state.stages.reduce((m, s) => Math.max(m, s.order_index), -1);
-  state.stages.push({ id: state.nextStageId++, name, order_index: maxOrder + 1 });
-  await saveState();
-  input.value = "";
-  renderStagesList();
-});
-
-/* -------------------------------------------------------------------------
-   Прочее
-   ------------------------------------------------------------------------- */
-
-$$(".modal-overlay").forEach((ov) => {
-  ov.addEventListener("click", (e) => {
-    if (e.target === ov) ov.classList.remove("open");
-  });
-});
-
-$("#btnConnect").addEventListener("click", async () => {
-  if (dirHandle && $("#btnConnect").textContent.includes("Подтвердить")) {
-    const ok = await verifyPermission(dirHandle, true);
-    if (ok) {
-      await loadState();
-      enterApp();
-    } else {
-      alert("Доступ не подтверждён. Попробуйте выбрать папку заново.");
-    }
-    return;
-  }
-  await connectFolder();
-});
-$("#btnConnectGate").addEventListener("click", connectFolder);
-
-/* -------------------------------------------------------------------------
-   Инициализация
-   ------------------------------------------------------------------------- */
-
-(async function init() {
-  if (!window.showDirectoryPicker) {
-    $("#warnBanner").style.display = "block";
-    $("#btnConnect").disabled = true;
-    $("#btnConnectGate").disabled = true;
-    return;
-  }
-  await tryRestoreFolder();
-})();
-</script>
+<!-- Модалка: справочники (виды документов + префиксы, контрагенты) -->
+<div class="modal-overlay" id="modalCatalogs">
+  <div class="modal modal-wide">
+    <h2>Справочники</h2>
+
+    <section class="card-section" style="margin-top:0;border-top:none">
+      <h3>Виды документов и префиксы</h3>
+      <p class="muted">Префикс используется при сборке имени документа и имени файла вложения, например «УПД №2594 от 31.07.26».</p>
+      <div id="catalogTypesList" class="stages-list"></div>
+      <form id="catalogTypeAddForm" class="stage-add-form">
+        <input type="text" id="newTypeName" placeholder="Название вида">
+        <input type="text" id="newTypePrefix" placeholder="Префикс" style="max-width:140px">
+        <button type="submit" class="btn btn-primary btn-small">Добавить</button>
+      </form>
+    </section>
+
+    <section class="card-section">
+      <h3>Контрагенты</h3>
+      <div id="catalogCounterpartiesList" class="stages-list"></div>
+      <form id="catalogCounterpartyAddForm" class="stage-add-form">
+        <input type="text" id="newCounterpartyName" placeholder="Название контрагента">
+        <button type="submit" class="btn btn-primary btn-small">Добавить</button>
+      </form>
+    </section>
+
+    <div class="modal-actions">
+      <button class="btn btn-secondary" id="btnCatalogsClose">Закрыть</button>
+    </div>
+  </div>
+</div>
+
+<script src="js/config.js"></script>
+<script src="js/storage.js"></script>
+<script src="js/app.js"></script>
 </body>
 </html>
