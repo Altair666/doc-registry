@@ -99,7 +99,7 @@ function renderStagesSelects() {
 
 function populateTypeSelect(selectEl, currentValue) {
   const opts = config.docTypes
-    .map((t) => `<option value="${escapeHtml(t.name)}" ${t.name === currentValue ? "selected" : ""}>${escapeHtml(t.name)}</option>`)
+    .map((t) => `<option value="${escapeHtml(t)}" ${t === currentValue ? "selected" : ""}>${escapeHtml(t)}</option>`)
     .join("");
   selectEl.innerHTML = opts + `<option value="${NEW_OPTION_VALUE}">+ Новый вид документа...</option>`;
   if (!currentValue) selectEl.selectedIndex = 0;
@@ -121,16 +121,14 @@ function wireNewTypeToggle() {
   });
   $("#fTypeNewAdd").addEventListener("click", () => {
     const name = $("#fTypeNewName").value;
-    const prefix = $("#fTypeNewPrefix").value;
     if (!name.trim()) {
-      alert("Укажите название вида документа");
+      alert("Укажите вид документа");
       return;
     }
-    const entry = addDocType(name, prefix);
-    populateTypeSelect($("#fType"), entry.name);
+    const entry = addDocType(name);
+    populateTypeSelect($("#fType"), entry);
     $("#fTypeNew").style.display = "none";
     $("#fTypeNewName").value = "";
-    $("#fTypeNewPrefix").value = "";
   });
 }
 
@@ -518,8 +516,7 @@ function renderCatalogTypes() {
     .map(
       (t, i) => `
     <div class="stage-row" data-i="${i}">
-      <input type="text" value="${escapeHtml(t.name)}" data-type-name="${i}" placeholder="Название">
-      <input type="text" value="${escapeHtml(t.prefix)}" data-type-prefix="${i}" placeholder="Префикс" style="max-width:120px">
+      <input type="text" value="${escapeHtml(t)}" data-type-name="${i}" placeholder="Вид документа (напр. УПД)">
       <button class="btn btn-danger btn-small" data-type-del="${i}">✕</button>
     </div>`
     )
@@ -527,14 +524,7 @@ function renderCatalogTypes() {
 
   list.querySelectorAll("input[data-type-name]").forEach((inp) => {
     inp.addEventListener("change", async () => {
-      config.docTypes[Number(inp.dataset.typeName)].name = inp.value.trim();
-      await saveConfig();
-      renderTable();
-    });
-  });
-  list.querySelectorAll("input[data-type-prefix]").forEach((inp) => {
-    inp.addEventListener("change", async () => {
-      config.docTypes[Number(inp.dataset.typePrefix)].prefix = inp.value.trim();
+      config.docTypes[Number(inp.dataset.typeName)] = inp.value.trim();
       await saveConfig();
       renderTable();
     });
@@ -542,7 +532,7 @@ function renderCatalogTypes() {
   list.querySelectorAll("button[data-type-del]").forEach((btn) => {
     btn.addEventListener("click", async () => {
       const i = Number(btn.dataset.typeDel);
-      const name = config.docTypes[i].name;
+      const name = config.docTypes[i];
       if (state.documents.some((d) => d.doc_type === name)) {
         alert("Этот вид документа используется в реестре, удалить нельзя");
         return;
@@ -558,12 +548,10 @@ function renderCatalogTypes() {
 $("#catalogTypeAddForm").addEventListener("submit", async (e) => {
   e.preventDefault();
   const name = $("#newTypeName").value;
-  const prefix = $("#newTypePrefix").value;
   if (!name.trim()) return;
-  addDocType(name, prefix);
+  addDocType(name);
   await saveConfig();
   $("#newTypeName").value = "";
-  $("#newTypePrefix").value = "";
   renderCatalogTypes();
 });
 
