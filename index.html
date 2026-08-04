@@ -22,7 +22,6 @@
     <span id="folderStatus" class="folder-status">Папка не подключена</span>
     <button id="btnConnect" class="btn btn-secondary">Подключить папку</button>
     <button id="btnCatalogs" class="btn btn-secondary" disabled>Справочники</button>
-    <button id="btnStages" class="btn btn-secondary" disabled>Стадии</button>
     <button id="btnAdd" class="btn btn-primary" disabled>+ Добавить документ</button>
   </div>
 </header>
@@ -116,60 +115,25 @@
         <label>Приложить файл новой версии (необязательно)
           <input type="file" id="advanceFile">
         </label>
-        <label class="full">Примечание
-          <input type="text" id="advanceNote" placeholder="комментарий к переходу">
-        </label>
         <button type="submit" class="btn btn-primary">Перевести на стадию</button>
-      </form>
-    </section>
-
-    <section class="card-section">
-      <h3>Прикрепить файл (без смены стадии)</h3>
-      <form id="attachForm" class="attach-form">
-        <input type="file" id="attachFile" required>
-        <button type="submit" class="btn btn-secondary">Прикрепить</button>
       </form>
     </section>
 
     <section class="card-section">
       <h3>Файлы и версии</h3>
       <table class="files-table">
-        <thead><tr><th>Версия</th><th>Имя</th><th>Стадия на момент загрузки</th><th>Загружен</th><th></th></tr></thead>
+        <thead><tr><th>Стадия</th><th>Имя</th><th>Загружен</th><th></th></tr></thead>
         <tbody id="filesBody"></tbody>
       </table>
     </section>
 
-    <section class="card-section">
-      <h3>История стадий</h3>
-      <table class="files-table">
-        <thead><tr><th>Дата</th><th>Стадия</th><th>Примечание</th></tr></thead>
-        <tbody id="historyBody"></tbody>
-      </table>
-    </section>
-
     <div class="modal-actions">
-      <button class="btn btn-secondary" id="btnEditDoc">Редактировать поля</button>
       <button class="btn btn-secondary" id="btnCardClose">Закрыть</button>
     </div>
   </div>
 </div>
 
-<!-- Модалка: управление стадиями -->
-<div class="modal-overlay" id="modalStages">
-  <div class="modal">
-    <h2>Стадии документооборота</h2>
-    <div id="stagesList" class="stages-list"></div>
-    <form id="stageAddForm" class="stage-add-form">
-      <input type="text" id="newStageName" placeholder="Название новой стадии">
-      <button type="submit" class="btn btn-primary btn-small">Добавить</button>
-    </form>
-    <div class="modal-actions">
-      <button class="btn btn-secondary" id="btnStagesClose">Закрыть</button>
-    </div>
-  </div>
-</div>
-
-<!-- Модалка: справочники (виды документов + префиксы, контрагенты) -->
+<!-- Модалка: справочники (виды документов, контрагенты, стадии) -->
 <div class="modal-overlay" id="modalCatalogs">
   <div class="modal modal-wide">
     <h2>Справочники</h2>
@@ -189,6 +153,16 @@
       <div id="catalogCounterpartiesList" class="stages-list"></div>
       <form id="catalogCounterpartyAddForm" class="stage-add-form">
         <input type="text" id="newCounterpartyName" placeholder="Название контрагента">
+        <button type="submit" class="btn btn-primary btn-small">Добавить</button>
+      </form>
+    </section>
+
+    <section class="card-section">
+      <h3>Стадии документооборота</h3>
+      <p class="muted">Порядок стадий можно менять стрелками — от него зависит, какая стадия предлагается «следующей» при переводе документа.</p>
+      <div id="stagesList" class="stages-list"></div>
+      <form id="stageAddForm" class="stage-add-form">
+        <input type="text" id="newStageName" placeholder="Название новой стадии">
         <button type="submit" class="btn btn-primary btn-small">Добавить</button>
       </form>
     </section>
