@@ -27,7 +27,7 @@ function todayIso() {
  * туда, без отдельных блоков снизу. Enter/потеря фокуса — сохранить
  * и добавить в справочник, Escape — отменить.
  */
-function setupCombo({ selectEl, inputEl, getOptions, addOption, includeEmpty }) {
+function setupCombo({ selectEl, inputEl, getOptions, addOption, includeEmpty, onChange }) {
   let lastValue = "";
 
   function populate(selected) {
@@ -42,6 +42,7 @@ function setupCombo({ selectEl, inputEl, getOptions, addOption, includeEmpty }) 
     selectEl.style.display = "";
     inputEl.style.display = "none";
     inputEl.value = "";
+    if (onChange) onChange();
   }
 
   function startAdding() {
@@ -192,6 +193,7 @@ const typeCombo = setupCombo({
   getOptions: () => config.docTypes,
   addOption: (v) => addDocType(v),
   includeEmpty: false,
+  onChange: () => updateSaveButtonState(),
 });
 
 const counterpartyCombo = setupCombo({
@@ -249,6 +251,15 @@ $("#filterStage").addEventListener("change", renderTable);
    Добавление / редактирование документа
    ------------------------------------------------------------------------- */
 
+/** Кнопку «Сохранить» можно нажать только если: прикреплён файл,
+    выбран вид документа и указан номер документа. */
+function updateSaveButtonState() {
+  const hasFile = $("#fFile").files && $("#fFile").files.length > 0;
+  const typeReady = $("#fType").style.display !== "none" && !!$("#fType").value && $("#fType").value !== NEW_OPTION_VALUE;
+  const hasNumber = $("#fNumber").value.trim().length > 0;
+  $("#btnDocSave").disabled = !(hasFile && typeReady && hasNumber);
+}
+
 $("#btnAdd").addEventListener("click", () => {
   $("#modalDocTitle").textContent = "Новый документ";
   ["fNumber", "fAmount", "fComment"].forEach((id) => ($("#" + id).value = ""));
@@ -259,6 +270,7 @@ $("#btnAdd").addEventListener("click", () => {
   counterpartyCombo.populate(null);
   $("#modalDoc").dataset.mode = "create";
   $("#modalDoc").classList.add("open");
+  updateSaveButtonState();
 });
 
 // Дата активируется, как только прикреплён файл, и сразу проставляется сегодняшним числом
@@ -268,7 +280,13 @@ $("#fFile").addEventListener("change", () => {
     $("#fDate").disabled = false;
     if (!$("#fDate").value) $("#fDate").value = todayIso();
   }
+  updateSaveButtonState();
 });
+
+$("#fType").addEventListener("change", updateSaveButtonState);
+$("#fTypeInput").addEventListener("input", updateSaveButtonState);
+$("#fTypeInput").addEventListener("blur", updateSaveButtonState);
+$("#fNumber").addEventListener("input", updateSaveButtonState);
 
 $("#btnDocCancel").addEventListener("click", () => $("#modalDoc").classList.remove("open"));
 
