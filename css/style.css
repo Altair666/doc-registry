@@ -92,6 +92,30 @@ main { padding: 20px 28px 60px; }
 
 .warn-banner { background: #fff4e5; color: #8a5a00; padding: 10px 16px; font-size: 13px; border-bottom: 1px solid #f0d9a8; }
 
+.version-badge {
+  position: fixed;
+  top: 10px;
+  left: 10px;
+  z-index: 200;
+  background: #23262f;
+  color: #fff;
+  border: none;
+  border-radius: 999px;
+  padding: 4px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  opacity: 0.85;
+  letter-spacing: 0.02em;
+}
+.version-badge:hover { opacity: 1; }
+
+.changelog-list { display: flex; flex-direction: column; gap: 14px; margin-top: 14px; max-height: 60vh; overflow-y: auto; }
+.changelog-entry { border-left: 3px solid var(--primary); padding-left: 12px; }
+.changelog-entry .changelog-version { font-weight: 700; font-size: 14px; }
+.changelog-entry .changelog-date { color: var(--muted); font-size: 12px; margin-left: 6px; }
+.changelog-entry .changelog-notes { font-size: 13px; margin-top: 4px; color: var(--text); }
+
 /* Modals */
 .modal-overlay {
   display: none;
