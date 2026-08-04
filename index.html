@@ -66,8 +66,7 @@
         <select id="fType"></select>
       </label>
       <div class="inline-add full" id="fTypeNew" style="display:none">
-        <input type="text" id="fTypeNewName" placeholder="Название вида">
-        <input type="text" id="fTypeNewPrefix" placeholder="Префикс (напр. УПД)">
+        <input type="text" id="fTypeNewName" placeholder="Новый вид документа (напр. УПД)">
         <button type="button" id="fTypeNewAdd" class="btn btn-secondary btn-small">Добавить вид</button>
       </div>
 
@@ -173,12 +172,11 @@
     <h2>Справочники</h2>
 
     <section class="card-section" style="margin-top:0;border-top:none">
-      <h3>Виды документов и префиксы</h3>
-      <p class="muted">Префикс используется при сборке имени документа и имени файла вложения, например «УПД №2594 от 31.07.26».</p>
+      <h3>Виды документов</h3>
+      <p class="muted">Вид документа — это одновременно и короткое обозначение, из которого собирается имя документа и имя файла вложения, например «УПД №2594 от 31.07.26».</p>
       <div id="catalogTypesList" class="stages-list"></div>
       <form id="catalogTypeAddForm" class="stage-add-form">
-        <input type="text" id="newTypeName" placeholder="Название вида">
-        <input type="text" id="newTypePrefix" placeholder="Префикс" style="max-width:140px">
+        <input type="text" id="newTypeName" placeholder="Новый вид документа">
         <button type="submit" class="btn btn-primary btn-small">Добавить</button>
       </form>
     </section>
