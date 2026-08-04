@@ -45,14 +45,9 @@ function sanitizeFilename(name) {
   return name.slice(0, 150) || "файл";
 }
 
-function prefixForType(typeName) {
-  const t = config.docTypes.find((x) => x.name === typeName);
-  return t ? t.prefix : (typeName || "Документ");
-}
-
 /** Собирает отображаемое имя документа: "УПД №2594 от 31.07.26" */
 function buildDocLabel(doc) {
-  const prefix = prefixForType(doc.doc_type);
+  const prefix = doc.doc_type || "Документ";
   const number = doc.number ? `№${doc.number}` : "№?";
   return `${prefix} ${number} от ${formatDateShort(doc.doc_date)}`;
 }
@@ -160,15 +155,11 @@ async function saveConfig() {
   await writable.close();
 }
 
-function addDocType(name, prefix) {
-  name = name.trim();
-  prefix = (prefix || name).trim();
+function addDocType(name) {
+  name = (name || "").trim();
   if (!name) return null;
-  const existing = config.docTypes.find((t) => t.name === name);
-  if (existing) return existing;
-  const entry = { name, prefix };
-  config.docTypes.push(entry);
-  return entry;
+  if (!config.docTypes.includes(name)) config.docTypes.push(name);
+  return name;
 }
 
 function addCounterparty(name) {
