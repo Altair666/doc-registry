@@ -111,7 +111,6 @@ $("#btnChangelogClose").addEventListener("click", () => $("#modalChangelog").cla
 function enterApp() {
   $("#gate").style.display = "none";
   $("#mainApp").style.display = "block";
-  $("#btnStages").disabled = false;
   $("#btnCatalogs").disabled = false;
   $("#btnAdd").disabled = false;
   $("#folderStatus").textContent = "Папка подключена: " + (dirHandle.name || "");
@@ -231,7 +230,7 @@ function renderTable() {
         <td>${escapeHtml(d.amount || "—")}</td>
         <td><span class="badge">${escapeHtml(stage ? stage.name : "—")}</span></td>
         <td>${d.files.length}</td>
-        <td>→</td>
+        <td><span class="row-arrow">→</span></td>
       </tr>`;
     })
     .join("");
@@ -299,30 +298,21 @@ $("#btnDocSave").addEventListener("click", async () => {
     comment: $("#fComment").value,
   };
 
-  const mode = $("#modalDoc").dataset.mode;
-  let doc;
-  if (mode === "edit") {
-    doc = state.documents.find((d) => d.id === currentDocId);
-    Object.assign(doc, payload);
-    doc.updated_at = nowIso();
-  } else {
-    const firstStage = orderedStages()[0];
-    if (!firstStage) {
-      alert("Нет ни одной стадии. Создайте стадию сначала.");
-      return;
-    }
-    const ts = nowIso();
-    doc = {
-      id: state.nextDocId++,
-      ...payload,
-      stage_id: firstStage.id,
-      created_at: ts,
-      updated_at: ts,
-      files: [],
-      history: [{ stage_id: firstStage.id, note: "Документ создан", changed_at: ts }],
-    };
-    state.documents.push(doc);
+  const firstStage = orderedStages()[0];
+  if (!firstStage) {
+    alert("Нет ни одной стадии. Создайте стадию сначала (в Справочниках).");
+    return;
   }
+  const ts = nowIso();
+  const doc = {
+    id: state.nextDocId++,
+    ...payload,
+    stage_id: firstStage.id,
+    created_at: ts,
+    updated_at: ts,
+    files: [],
+  };
+  state.documents.push(doc);
 
   const fileInput = $("#fFile");
   if (fileInput.files[0]) {
@@ -333,7 +323,6 @@ $("#btnDocSave").addEventListener("click", async () => {
   await saveConfig();
   $("#modalDoc").classList.remove("open");
   renderTable();
-  if (mode === "edit") openCard(currentDocId);
 });
 
 /* -------------------------------------------------------------------------
@@ -362,22 +351,20 @@ function renderCard(doc) {
   if (nextStage) $("#advanceTarget").value = nextStage.id;
 
   $("#advanceFile").value = "";
-  $("#advanceNote").value = "";
-  $("#attachFile").value = "";
 
   const filesSorted = [...doc.files].sort((a, b) => b.version - a.version);
   const filesBody = $("#filesBody");
   if (!filesSorted.length) {
-    filesBody.innerHTML = `<tr><td colspan="5" class="muted">Файлов пока нет</td></tr>`;
+    filesBody.innerHTML = `<tr><td colspan="4" class="muted">Файлов пока нет</td></tr>`;
   } else {
     filesBody.innerHTML = filesSorted
       .map((f) => {
         const fStage = getStage(f.stage_id);
+        const stageLabel = f.stage_name || (fStage ? fStage.name : "—");
         return `
         <tr>
-          <td>v${f.version}</td>
+          <td><span class="badge">${escapeHtml(stageLabel)}</span></td>
           <td><a class="file-link" data-file="${f.stored_filename}">${escapeHtml(f.custom_name)}</a></td>
-          <td>${escapeHtml(fStage ? fStage.name : "—")}</td>
           <td>${escapeHtml(f.uploaded_at)}</td>
           <td><button class="btn btn-danger btn-small" data-del-file="${f.id}">Удалить</button></td>
         </tr>`;
@@ -400,40 +387,16 @@ function renderCard(doc) {
 
     filesBody.querySelectorAll("button[data-del-file]").forEach((btn) => {
       btn.addEventListener("click", async () => {
-        if (!confirm("Удалить эту версию файла безвозвратно (и с диска тоже)?")) return;
+        if (!confirm("Удалить этот файл безвозвратно (и с диска тоже)?")) return;
         await deleteFileEntry(doc, Number(btn.dataset.delFile));
         renderCard(doc);
         renderTable();
       });
     });
   }
-
-  const historyBody = $("#historyBody");
-  historyBody.innerHTML =
-    doc.history
-      .map((h) => {
-        const hStage = getStage(h.stage_id);
-        return `<tr><td>${escapeHtml(h.changed_at)}</td><td><span class="badge">${escapeHtml(hStage ? hStage.name : "—")}</span></td><td>${escapeHtml(h.note || "")}</td></tr>`;
-      })
-      .join("") || `<tr><td colspan="3" class="muted">Нет записей</td></tr>`;
 }
 
 $("#btnCardClose").addEventListener("click", () => $("#modalCard").classList.remove("open"));
-
-$("#btnEditDoc").addEventListener("click", () => {
-  const doc = state.documents.find((d) => d.id === currentDocId);
-  $("#modalDocTitle").textContent = "Редактировать документ";
-  typeCombo.populate(doc.doc_type);
-  $("#fNumber").value = doc.number || "";
-  $("#fDate").value = doc.doc_date || "";
-  $("#fDate").disabled = false;
-  counterpartyCombo.populate(doc.counterparty);
-  $("#fAmount").value = doc.amount || "";
-  $("#fComment").value = doc.comment || "";
-  $("#fFile").value = "";
-  $("#modalDoc").dataset.mode = "edit";
-  $("#modalDoc").classList.add("open");
-});
 
 $("#btnDeleteDoc").addEventListener("click", async () => {
   if (!confirm("Удалить документ из реестра? (файлы на диске останутся, если явно их не удаляли)")) return;
@@ -447,7 +410,6 @@ $("#advanceForm").addEventListener("submit", async (e) => {
   e.preventDefault();
   const doc = state.documents.find((d) => d.id === currentDocId);
   const targetStageId = Number($("#advanceTarget").value);
-  const note = $("#advanceNote").value;
   const fileInput = $("#advanceFile");
 
   if (fileInput.files[0]) {
@@ -456,39 +418,15 @@ $("#advanceForm").addEventListener("submit", async (e) => {
 
   doc.stage_id = targetStageId;
   doc.updated_at = nowIso();
-  doc.history.push({ stage_id: targetStageId, note, changed_at: nowIso() });
 
-  await saveState();
-  renderTable();
-  openCard(currentDocId);
-});
-
-$("#attachForm").addEventListener("submit", async (e) => {
-  e.preventDefault();
-  const doc = state.documents.find((d) => d.id === currentDocId);
-  const fileInput = $("#attachFile");
-  if (!fileInput.files[0]) return;
-  await attachFileToDoc(doc, fileInput.files[0], doc.stage_id);
   await saveState();
   renderTable();
   openCard(currentDocId);
 });
 
 /* -------------------------------------------------------------------------
-   Модалка «Стадии»
+   Стадии — теперь часть модалки «Справочники»
    ------------------------------------------------------------------------- */
-
-$("#btnStages").addEventListener("click", () => {
-  renderStagesList();
-  $("#modalStages").classList.add("open");
-});
-
-$("#btnStagesClose").addEventListener("click", async () => {
-  $("#modalStages").classList.remove("open");
-  await saveState();
-  renderStagesSelects();
-  renderTable();
-});
 
 function renderStagesList() {
   const stages = orderedStages();
@@ -511,6 +449,7 @@ function renderStagesList() {
       const stage = getStage(Number(inp.dataset.id));
       stage.name = inp.value;
       await saveState();
+      renderStagesSelects();
     });
   });
   list.querySelectorAll("button[data-up]").forEach((btn) => {
@@ -530,6 +469,7 @@ function renderStagesList() {
       state.stages = state.stages.filter((s) => s.id !== id);
       await saveState();
       renderStagesList();
+      renderStagesSelects();
     });
   });
 }
@@ -554,21 +494,25 @@ $("#stageAddForm").addEventListener("submit", async (e) => {
   await saveState();
   input.value = "";
   renderStagesList();
+  renderStagesSelects();
 });
 
 /* -------------------------------------------------------------------------
-   Модалка «Справочники» (виды документов + префиксы, контрагенты)
+   Модалка «Справочники» (виды документов, контрагенты, стадии)
    ------------------------------------------------------------------------- */
 
 $("#btnCatalogs").addEventListener("click", () => {
   renderCatalogTypes();
   renderCatalogCounterparties();
+  renderStagesList();
   $("#modalCatalogs").classList.add("open");
 });
 
 $("#btnCatalogsClose").addEventListener("click", async () => {
   $("#modalCatalogs").classList.remove("open");
   await saveConfig();
+  await saveState();
+  renderStagesSelects();
   renderTable();
 });
 
@@ -663,10 +607,14 @@ $("#catalogCounterpartyAddForm").addEventListener("submit", async (e) => {
 });
 
 /* -------------------------------------------------------------------------
-   Закрытие модалок по клику на фон
+   Закрытие модалок по клику на фон.
+   Окно документа ("modalDoc") сюда не включено намеренно — оно содержит
+   форму, и случайный клик мимо не должен стирать введённые данные.
+   Закрыть его можно только кнопкой «Отмена».
    ------------------------------------------------------------------------- */
 
 $$(".modal-overlay").forEach((ov) => {
+  if (ov.id === "modalDoc") return;
   ov.addEventListener("click", (e) => {
     if (e.target === ov) ov.classList.remove("open");
   });
