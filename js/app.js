@@ -14,6 +14,78 @@ function escapeHtml(str) {
 
 const NEW_OPTION_VALUE = "__new__";
 
+function todayIso() {
+  const d = new Date();
+  const pad = (n) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+}
+
+/**
+ * Комбо-виджет: <select> со списком + пункт "+ Добавить новое...".
+ * При выборе этого пункта select прячется, а на его месте (то же поле,
+ * та же ширина) появляется текстовый input — значение вводится прямо
+ * туда, без отдельных блоков снизу. Enter/потеря фокуса — сохранить
+ * и добавить в справочник, Escape — отменить.
+ */
+function setupCombo({ selectEl, inputEl, getOptions, addOption, includeEmpty }) {
+  let lastValue = "";
+
+  function populate(selected) {
+    const opts = getOptions();
+    lastValue = selected || "";
+    const emptyOpt = includeEmpty ? `<option value="">—</option>` : "";
+    const opsHtml = opts
+      .map((o) => `<option value="${escapeHtml(o)}" ${o === selected ? "selected" : ""}>${escapeHtml(o)}</option>`)
+      .join("");
+    selectEl.innerHTML = emptyOpt + opsHtml + `<option value="${NEW_OPTION_VALUE}">+ Добавить новое...</option>`;
+    if (!selected) selectEl.value = includeEmpty ? "" : opts[0] || "";
+    selectEl.style.display = "";
+    inputEl.style.display = "none";
+    inputEl.value = "";
+  }
+
+  function startAdding() {
+    selectEl.style.display = "none";
+    inputEl.style.display = "";
+    inputEl.value = "";
+    inputEl.focus();
+  }
+
+  function commit() {
+    const val = inputEl.value.trim();
+    if (val) {
+      addOption(val);
+      populate(val);
+    } else {
+      populate(lastValue);
+    }
+  }
+
+  selectEl.addEventListener("change", () => {
+    if (selectEl.value === NEW_OPTION_VALUE) {
+      startAdding();
+    } else {
+      lastValue = selectEl.value;
+    }
+  });
+  inputEl.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      commit();
+    } else if (e.key === "Escape") {
+      e.preventDefault();
+      populate(lastValue);
+    }
+  });
+  inputEl.addEventListener("blur", commit);
+
+  return {
+    populate,
+    commit,
+    getValue: () => selectEl.value,
+  };
+}
+
 /* -------------------------------------------------------------------------
    Версия приложения и патч-ноуты
    ------------------------------------------------------------------------- */
@@ -115,60 +187,21 @@ function renderStagesSelects() {
    Редактируемые списки (справочники): вид документа / контрагент
    ------------------------------------------------------------------------- */
 
-function populateTypeSelect(selectEl, currentValue) {
-  const opts = config.docTypes
-    .map((t) => `<option value="${escapeHtml(t)}" ${t === currentValue ? "selected" : ""}>${escapeHtml(t)}</option>`)
-    .join("");
-  selectEl.innerHTML = opts + `<option value="${NEW_OPTION_VALUE}">+ Новый вид документа...</option>`;
-  if (!currentValue) selectEl.selectedIndex = 0;
-}
+const typeCombo = setupCombo({
+  selectEl: $("#fType"),
+  inputEl: $("#fTypeInput"),
+  getOptions: () => config.docTypes,
+  addOption: (v) => addDocType(v),
+  includeEmpty: false,
+});
 
-function populateCounterpartySelect(selectEl, currentValue) {
-  const opts = config.counterparties
-    .map((c) => `<option value="${escapeHtml(c)}" ${c === currentValue ? "selected" : ""}>${escapeHtml(c)}</option>`)
-    .join("");
-  selectEl.innerHTML =
-    `<option value="">—</option>` + opts + `<option value="${NEW_OPTION_VALUE}">+ Новый контрагент...</option>`;
-  if (currentValue) selectEl.value = currentValue;
-}
-
-function wireNewTypeToggle() {
-  $("#fType").addEventListener("change", () => {
-    const isNew = $("#fType").value === NEW_OPTION_VALUE;
-    $("#fTypeNew").style.display = isNew ? "flex" : "none";
-  });
-  $("#fTypeNewAdd").addEventListener("click", () => {
-    const name = $("#fTypeNewName").value;
-    if (!name.trim()) {
-      alert("Укажите вид документа");
-      return;
-    }
-    const entry = addDocType(name);
-    populateTypeSelect($("#fType"), entry);
-    $("#fTypeNew").style.display = "none";
-    $("#fTypeNewName").value = "";
-  });
-}
-
-function wireNewCounterpartyToggle() {
-  $("#fCounterparty").addEventListener("change", () => {
-    const isNew = $("#fCounterparty").value === NEW_OPTION_VALUE;
-    $("#fCounterpartyNew").style.display = isNew ? "flex" : "none";
-  });
-  $("#fCounterpartyNewAdd").addEventListener("click", () => {
-    const name = $("#fCounterpartyNewName").value;
-    if (!name.trim()) {
-      alert("Укажите название контрагента");
-      return;
-    }
-    const saved = addCounterparty(name);
-    populateCounterpartySelect($("#fCounterparty"), saved);
-    $("#fCounterpartyNew").style.display = "none";
-    $("#fCounterpartyNewName").value = "";
-  });
-}
-wireNewTypeToggle();
-wireNewCounterpartyToggle();
+const counterpartyCombo = setupCombo({
+  selectEl: $("#fCounterparty"),
+  inputEl: $("#fCounterpartyInput"),
+  getOptions: () => config.counterparties,
+  addOption: (v) => addCounterparty(v),
+  includeEmpty: true,
+});
 
 /* -------------------------------------------------------------------------
    Таблица документов
@@ -219,23 +252,35 @@ $("#filterStage").addEventListener("change", renderTable);
 
 $("#btnAdd").addEventListener("click", () => {
   $("#modalDocTitle").textContent = "Новый документ";
-  ["fNumber", "fDate", "fAmount", "fComment"].forEach((id) => ($("#" + id).value = ""));
+  ["fNumber", "fAmount", "fComment"].forEach((id) => ($("#" + id).value = ""));
   $("#fFile").value = "";
-  populateTypeSelect($("#fType"), null);
-  populateCounterpartySelect($("#fCounterparty"), null);
-  $("#fTypeNew").style.display = "none";
-  $("#fCounterpartyNew").style.display = "none";
+  $("#fDate").value = "";
+  $("#fDate").disabled = true;
+  typeCombo.populate(null);
+  counterpartyCombo.populate(null);
   $("#modalDoc").dataset.mode = "create";
   $("#modalDoc").classList.add("open");
+});
+
+// Дата активируется, как только прикреплён файл, и сразу проставляется сегодняшним числом
+$("#fFile").addEventListener("change", () => {
+  if ($("#modalDoc").dataset.mode !== "create") return;
+  if ($("#fFile").files[0]) {
+    $("#fDate").disabled = false;
+    if (!$("#fDate").value) $("#fDate").value = todayIso();
+  }
 });
 
 $("#btnDocCancel").addEventListener("click", () => $("#modalDoc").classList.remove("open"));
 
 $("#btnDocSave").addEventListener("click", async () => {
+  typeCombo.commit();
+  counterpartyCombo.commit();
+
   const typeVal = $("#fType").value;
   const cpVal = $("#fCounterparty").value;
 
-  if (!typeVal || typeVal === NEW_OPTION_VALUE) {
+  if (!typeVal) {
     alert("Укажите вид документа (или добавьте новый)");
     return;
   }
@@ -249,7 +294,7 @@ $("#btnDocSave").addEventListener("click", async () => {
     doc_type: typeVal,
     number,
     doc_date: $("#fDate").value,
-    counterparty: cpVal === NEW_OPTION_VALUE ? "" : cpVal,
+    counterparty: cpVal,
     amount: $("#fAmount").value,
     comment: $("#fComment").value,
   };
@@ -378,15 +423,14 @@ $("#btnCardClose").addEventListener("click", () => $("#modalCard").classList.rem
 $("#btnEditDoc").addEventListener("click", () => {
   const doc = state.documents.find((d) => d.id === currentDocId);
   $("#modalDocTitle").textContent = "Редактировать документ";
-  populateTypeSelect($("#fType"), doc.doc_type);
+  typeCombo.populate(doc.doc_type);
   $("#fNumber").value = doc.number || "";
   $("#fDate").value = doc.doc_date || "";
-  populateCounterpartySelect($("#fCounterparty"), doc.counterparty);
+  $("#fDate").disabled = false;
+  counterpartyCombo.populate(doc.counterparty);
   $("#fAmount").value = doc.amount || "";
   $("#fComment").value = doc.comment || "";
   $("#fFile").value = "";
-  $("#fTypeNew").style.display = "none";
-  $("#fCounterpartyNew").style.display = "none";
   $("#modalDoc").dataset.mode = "edit";
   $("#modalDoc").classList.add("open");
 });
