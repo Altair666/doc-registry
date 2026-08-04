@@ -236,13 +236,16 @@ async function writeFileToRoot(file, storedName) {
 
 /**
  * Прикрепляет файл к документу. Имя файла берётся автоматически из
- * "имени документа" (вид + номер + дата), подписывать вручную не нужно.
+ * "имени документа" (вид + номер + дата) и подписывается стадией, на
+ * которой файл был загружен — не номером версии.
  */
 async function attachFileToDoc(doc, file, stageId) {
   const ext = (file.name.match(/\.[^./\\]+$/) || [""])[0];
   const label = sanitizeFilename(buildDocLabel(doc));
+  const stage = state.stages.find((s) => s.id === stageId);
+  const stageName = stage ? stage.name : "";
   const version = doc.files.reduce((m, f) => Math.max(m, f.version), 0) + 1;
-  const base = `${label} v${version}`;
+  const base = stageName ? `${label} - ${stageName}` : label;
   const storedName = uniqueStoredName(base, ext);
 
   await writeFileToRoot(file, storedName);
@@ -254,6 +257,7 @@ async function attachFileToDoc(doc, file, stageId) {
     stored_filename: storedName,
     original_filename: file.name,
     stage_id: stageId,
+    stage_name: stageName,
     uploaded_at: nowIso(),
   };
   doc.files.push(fileEntry);
