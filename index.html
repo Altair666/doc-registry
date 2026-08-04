@@ -8,6 +8,8 @@
 </head>
 <body>
 
+<button id="versionBadge" class="version-badge" type="button">v?.?.?</button>
+
 <div id="warnBanner" class="warn-banner" style="display:none">
   Этот браузер не поддерживает прямой доступ к файлам (File System Access API).
   Откройте страницу в Chrome или Edge, либо запустите локальный сервер:
@@ -196,6 +198,18 @@
   </div>
 </div>
 
+<!-- Модалка: версия и история изменений -->
+<div class="modal-overlay" id="modalChangelog">
+  <div class="modal">
+    <h2>Что нового</h2>
+    <div id="changelogList" class="changelog-list"></div>
+    <div class="modal-actions">
+      <button class="btn btn-secondary" id="btnChangelogClose">Закрыть</button>
+    </div>
+  </div>
+</div>
+
+<script src="js/version.js"></script>
 <script src="js/config.js"></script>
 <script src="js/storage.js"></script>
 <script src="js/app.js"></script>
