@@ -72,22 +72,9 @@ main { padding: 20px 28px 60px; }
   text-transform: uppercase;
   letter-spacing: 0.03em;
 }
-.registry-table tbody tr { cursor: pointer; }
 .registry-table tbody tr:hover { background: #f7f9fe; }
-
-.row-arrow {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 26px;
-  height: 26px;
-  border-radius: 50%;
-  border: 1px solid var(--primary);
-  color: var(--primary);
-  font-weight: 700;
-  transition: background 0.1s, color 0.1s;
-}
-.registry-table tbody tr:hover .row-arrow { background: var(--primary); color: #fff; }
+.registry-table td { user-select: text; }
+.row-open { white-space: nowrap; }
 
 .badge {
   display: inline-block;
