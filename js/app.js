@@ -15,6 +15,24 @@ function escapeHtml(str) {
 const NEW_OPTION_VALUE = "__new__";
 
 /* -------------------------------------------------------------------------
+   Версия приложения и патч-ноуты
+   ------------------------------------------------------------------------- */
+
+$("#versionBadge").textContent = "v" + APP_VERSION;
+$("#versionBadge").addEventListener("click", () => {
+  $("#changelogList").innerHTML = CHANGELOG.map(
+    (c) => `
+    <div class="changelog-entry">
+      <span class="changelog-version">v${escapeHtml(c.version)}</span>
+      <span class="changelog-date">${escapeHtml(c.date)}</span>
+      <div class="changelog-notes">${escapeHtml(c.notes)}</div>
+    </div>`
+  ).join("");
+  $("#modalChangelog").classList.add("open");
+});
+$("#btnChangelogClose").addEventListener("click", () => $("#modalChangelog").classList.remove("open"));
+
+/* -------------------------------------------------------------------------
    Вход в приложение / подключение папки
    ------------------------------------------------------------------------- */
 
