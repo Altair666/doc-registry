@@ -61,32 +61,33 @@
 
 <!-- Модалка: добавить/редактировать документ -->
 <div class="modal-overlay" id="modalDoc">
-  <div class="modal">
+  <div class="modal modal-doc">
     <h2 id="modalDocTitle">Новый документ</h2>
     <div class="form-grid">
+      <label class="full">Прикрепить файл
+        <input type="file" id="fFile">
+      </label>
+      <p class="full muted" style="margin:-6px 0 0">Имя файла подписывать не нужно — соберётся само из вида, номера и даты (например «УПД №2594 от 31.07.26»).</p>
+
+      <label class="full">Дата <input id="fDate" type="date" disabled></label>
+
       <label>Вид документа
-        <select id="fType"></select>
+        <div class="combo">
+          <select id="fType"></select>
+          <input type="text" id="fTypeInput" style="display:none">
+        </div>
       </label>
-      <div class="inline-add full" id="fTypeNew" style="display:none">
-        <input type="text" id="fTypeNewName" placeholder="Новый вид документа (напр. УПД)">
-        <button type="button" id="fTypeNewAdd" class="btn btn-secondary btn-small">Добавить вид</button>
-      </div>
-
       <label>Имя документа (номер) <input id="fNumber" type="text" placeholder="например: 2594"></label>
-      <label>Дата <input id="fDate" type="date"></label>
 
-      <label>Контрагент
-        <select id="fCounterparty"></select>
+      <label class="full">Контрагент
+        <div class="combo">
+          <select id="fCounterparty"></select>
+          <input type="text" id="fCounterpartyInput" style="display:none">
+        </div>
       </label>
-      <div class="inline-add full" id="fCounterpartyNew" style="display:none">
-        <input type="text" id="fCounterpartyNewName" placeholder="Название контрагента">
-        <button type="button" id="fCounterpartyNewAdd" class="btn btn-secondary btn-small">Добавить контрагента</button>
-      </div>
 
-      <label>Сумма <input id="fAmount" type="text"></label>
+      <label class="full">Сумма <input id="fAmount" type="text"></label>
       <label class="full">Комментарий <textarea id="fComment" rows="2"></textarea></label>
-      <label class="full">Прикрепить файл (можно сразу, можно позже) <input type="file" id="fFile"></label>
-      <p class="full muted">Имя файла подписывать не нужно — оно соберётся автоматически из вида, номера и даты (например «УПД №2594 от 31.07.26»).</p>
     </div>
     <div class="modal-actions">
       <button class="btn btn-secondary" id="btnDocCancel">Отмена</button>
