@@ -8,7 +8,7 @@
    ========================================================================== */
 
 let groupVendorLoaded = false;
-let groups = []; // { color, doc_type, number, doc_date, counterparty, amount, comment, pagesCount, pendingPlacement, confirmed, startPage }
+let groups = []; // { color, doc_type, number, doc_date, counterparty, amount, comment, pagesCount, pendingPlacement, confirmed, assignedPages }
 let groupPdfDoc = null; // pdfjsLib document proxy (для рендера превью)
 let groupPdfBytesForSplit = null; // ArrayBuffer — отдельная копия для pdf-lib
 let groupTotalPages = 0;
@@ -135,9 +135,9 @@ function makeEmptyGroup(idx) {
     amount: "",
     comment: "",
     pagesCount: 1,
-    pendingPlacement: null,
+    pendingPlacement: null, // массив номеров страниц, ожидающих подтверждения
     confirmed: false,
-    startPage: null,
+    assignedPages: null, // массив номеров страниц, закреплённых за группой
   };
 }
 
@@ -150,8 +150,8 @@ function setGroupCount(n) {
   if (n < groups.length) {
     for (let i = n; i < groups.length; i++) {
       const g = groups[i];
-      if (g.confirmed && g.startPage != null) {
-        for (let p = g.startPage; p < g.startPage + g.pagesCount; p++) groupConsumedPages.delete(p);
+      if (g.confirmed && g.assignedPages) {
+        g.assignedPages.forEach((p) => groupConsumedPages.delete(p));
       }
     }
     groups = groups.slice(0, n);
@@ -314,28 +314,44 @@ function updateGroupBadgeVisual(idx) {
    Размещение и подтверждение бейджей на страницах PDF
    ------------------------------------------------------------------------- */
 
+/** Список номеров страниц, доступных для размещения — по порядку,
+    без учёта уже занятых другой группой и удалённых (пропускаются). */
+function availablePageNumbers() {
+  const list = [];
+  for (let p = 1; p <= groupTotalPages; p++) {
+    if (groupConsumedPages.has(p)) continue;
+    if (getPageState(p).deleted) continue;
+    list.push(p);
+  }
+  return list;
+}
+
 function placeBadgeOnPage(idx, pageNum) {
   const g = groups[idx];
   const count = g.pagesCount;
-  for (let p = pageNum; p < pageNum + count; p++) {
-    if (p > groupTotalPages || groupConsumedPages.has(p) || getPageState(p).deleted) {
-      alert("Недостаточно свободных страниц подряд начиная с этой, либо часть уже занята/удалена.");
-      return;
-    }
+  const available = availablePageNumbers();
+  const startIdx = available.indexOf(pageNum);
+  if (startIdx === -1) {
+    alert("Эта страница недоступна для размещения.");
+    return;
   }
-  g.pendingPlacement = pageNum;
+  const slice = available.slice(startIdx, startIdx + count);
+  if (slice.length < count) {
+    alert("Недостаточно свободных (не удалённых) страниц начиная с этой.");
+    return;
+  }
+  g.pendingPlacement = slice;
   renderGroupPdfPages();
 }
 
 function confirmGroupPlacement(idx) {
   const g = groups[idx];
-  if (g.pendingPlacement == null) {
+  if (!g.pendingPlacement || !g.pendingPlacement.length) {
     alert("Сначала перетащите бейдж этой группы на нужную страницу справа.");
     return;
   }
-  const start = g.pendingPlacement;
-  for (let p = start; p < start + g.pagesCount; p++) groupConsumedPages.add(p);
-  g.startPage = start;
+  g.pendingPlacement.forEach((p) => groupConsumedPages.add(p));
+  g.assignedPages = g.pendingPlacement;
   g.confirmed = true;
   g.pendingPlacement = null;
   renderGroupCards();
@@ -345,11 +361,11 @@ function confirmGroupPlacement(idx) {
 
 function resetGroupPlacement(idx) {
   const g = groups[idx];
-  if (g.confirmed && g.startPage != null) {
-    for (let p = g.startPage; p < g.startPage + g.pagesCount; p++) groupConsumedPages.delete(p);
+  if (g.confirmed && g.assignedPages) {
+    g.assignedPages.forEach((p) => groupConsumedPages.delete(p));
   }
   g.confirmed = false;
-  g.startPage = null;
+  g.assignedPages = null;
   g.pendingPlacement = null;
   renderGroupCards();
   renderGroupPdfPages();
@@ -378,7 +394,7 @@ $("#groupFile").addEventListener("change", async () => {
   $("#btnShowHiddenPages").classList.add("btn-secondary");
   groups.forEach((g) => {
     g.confirmed = false;
-    g.startPage = null;
+    g.assignedPages = null;
     g.pendingPlacement = null;
   });
 
@@ -476,11 +492,11 @@ async function renderGroupPdfPages() {
   if (myToken !== groupPdfRenderToken) return;
 
   groups.forEach((g, idx) => {
-    if (g.pendingPlacement == null) return;
-    for (let offset = 0; offset < g.pagesCount; offset++) {
-      const pageEl = container.querySelector(`.pdf-page[data-page="${g.pendingPlacement + offset}"]`);
-      if (pageEl) renderPendingOverlay(pageEl, idx, offset === 0);
-    }
+    if (!g.pendingPlacement) return;
+    g.pendingPlacement.forEach((p, i) => {
+      const pageEl = container.querySelector(`.pdf-page[data-page="${p}"]`);
+      if (pageEl) renderPendingOverlay(pageEl, idx, i === 0);
+    });
   });
 }
 
@@ -564,11 +580,10 @@ $("#btnGroupSave").addEventListener("click", async () => {
     state.documents.push(doc);
 
     const outPdf = await PDFLib.PDFDocument.create();
-    const pageIndices = [];
-    for (let p = g.startPage; p < g.startPage + g.pagesCount; p++) pageIndices.push(p - 1);
+    const pageIndices = g.assignedPages.map((p) => p - 1);
     const copiedPages = await outPdf.copyPages(srcPdf, pageIndices);
     copiedPages.forEach((pg, i) => {
-      const pageNum = g.startPage + i;
+      const pageNum = g.assignedPages[i];
       const extra = getPageState(pageNum).rotation || 0;
       if (extra) {
         const current = pg.getRotation().angle || 0;
