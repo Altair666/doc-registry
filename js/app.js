@@ -703,18 +703,35 @@ $$(".modal-overlay").forEach((ov) => {
 
 /* -------------------------------------------------------------------------
    Изменение ширины столбцов таблицы реестра (перетаскивание границы
-   заголовка). Таблица использует table-layout:fixed и НЕ подгоняется под
-   100% ширины контейнера (см. .table-scroll/.registry-table в CSS) —
-   поэтому при перетягивании одной границы остальные столбцы не "плывут".
+   заголовка). Раньше ширина таблицы задавалась через CSS (auto/
+   max-content) — в table-layout:fixed браузеры трактуют это неодинаково,
+   из-за чего при перетягивании одной границы "плыли" все остальные.
+   Теперь ширина таблицы — это явная сумма ширин столбцов, которую мы
+   сами пересчитываем и выставляем в пикселях при каждом движении мыши.
    Итоговые ширины сохраняются в config.columnWidths (config.json).
    ------------------------------------------------------------------------- */
 
-function applyColumnWidths() {
-  if (!config.columnWidths) return;
-  $$("#registryTable thead th[data-width-key]").forEach((th) => {
-    const saved = config.columnWidths[th.dataset.widthKey];
-    if (typeof saved === "number" && saved >= 50) th.style.width = saved + "px";
+/** Пересчитывает и выставляет width таблицы = сумма ширин всех столбцов.
+    Без этого браузер может по-своему растягивать/сжимать столбцы, из-за
+    чего при ресайзе одного "плывут" остальные. */
+function updateTableTotalWidth() {
+  const table = $("#registryTable");
+  const ths = $$("#registryTable thead th[data-width-key]");
+  let total = 0;
+  ths.forEach((th) => {
+    total += parseFloat(th.style.width) || th.getBoundingClientRect().width || 0;
   });
+  if (total > 0) table.style.width = total + "px";
+}
+
+function applyColumnWidths() {
+  if (config.columnWidths) {
+    $$("#registryTable thead th[data-width-key]").forEach((th) => {
+      const saved = config.columnWidths[th.dataset.widthKey];
+      if (typeof saved === "number" && saved >= 50) th.style.width = saved + "px";
+    });
+  }
+  updateTableTotalWidth();
 }
 
 function makeColumnsResizable() {
@@ -736,11 +753,13 @@ function makeColumnsResizable() {
       function onMove(ev) {
         currentWidth = Math.max(50, Math.round(startWidth + (ev.clientX - startX)));
         th.style.width = currentWidth + "px";
+        updateTableTotalWidth();
       }
       async function onUp() {
         resizer.classList.remove("active");
         document.removeEventListener("mousemove", onMove);
         document.removeEventListener("mouseup", onUp);
+        updateTableTotalWidth();
         if (!config.columnWidths) config.columnWidths = {};
         config.columnWidths[th.dataset.widthKey] = currentWidth;
         await saveConfig();
