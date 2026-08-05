@@ -14,6 +14,15 @@ function escapeHtml(str) {
 
 const NEW_OPTION_VALUE = "__new__";
 
+/** HTML цветного бейджа стадии. Если передан stage — берёт его цвет,
+    иначе (стадия удалена/переименована) — нейтральный серый с fallbackName. */
+function stageBadge(stage, fallbackName) {
+  const name = stage ? stage.name : fallbackName || "—";
+  const color = stage && stage.color ? stage.color : "#94a3b8";
+  const fg = textColorFor(color);
+  return `<span class="badge" style="background:${color};color:${fg}">${escapeHtml(name)}</span>`;
+}
+
 function todayIso() {
   const d = new Date();
   const pad = (n) => String(n).padStart(2, "0");
@@ -208,12 +217,30 @@ const counterpartyCombo = setupCombo({
    Таблица документов
    ------------------------------------------------------------------------- */
 
+/** Значения для фильтра по ПКМ на заголовке столбца. */
+const COLUMN_DEFS = {
+  document: (d) => buildDocLabel(d),
+  type: (d) => d.doc_type || "—",
+  counterparty: (d) => d.counterparty || "—",
+  amount: (d) => d.amount || "—",
+  stage: (d) => {
+    const s = getStage(d.stage_id);
+    return s ? s.name : "—";
+  },
+  files: (d) => String(d.files.length),
+};
+
+let columnFilters = {}; // { colKey: "выбранное значение" }
+
 function renderTable() {
   const search = $("#search").value.trim().toLowerCase();
   const stageFilter = $("#filterStage").value;
 
   let rows = state.documents.filter((d) => {
     if (stageFilter && String(d.stage_id) !== stageFilter) return false;
+    for (const key of Object.keys(columnFilters)) {
+      if (COLUMN_DEFS[key] && COLUMN_DEFS[key](d) !== columnFilters[key]) return false;
+    }
     if (!search) return true;
     const hay = [d.number, d.doc_type, d.counterparty, buildDocLabel(d)].join(" ").toLowerCase();
     return hay.includes(search);
@@ -230,12 +257,16 @@ function renderTable() {
         <td>${escapeHtml(d.doc_type || "—")}</td>
         <td>${escapeHtml(d.counterparty || "—")}</td>
         <td>${escapeHtml(d.amount || "—")}</td>
-        <td><span class="badge">${escapeHtml(stage ? stage.name : "—")}</span></td>
+        <td>${stageBadge(stage)}</td>
         <td>${d.files.length}</td>
-        <td><button type="button" class="btn btn-secondary btn-small row-open" data-id="${d.id}">Открыть →</button></td>
+        <td><button type="button" class="btn btn-secondary btn-small row-open" data-id="${d.id}">Продвинуть →</button></td>
       </tr>`;
     })
     .join("");
+
+  $$("#registryTable thead th[data-col]").forEach((th) => {
+    th.classList.toggle("th-filtered", Object.prototype.hasOwnProperty.call(columnFilters, th.dataset.col));
+  });
 
   $$("#docsBody .row-open").forEach((btn) => {
     btn.addEventListener("click", (e) => {
@@ -362,7 +393,10 @@ function renderCard(doc) {
   const stage = getStage(doc.stage_id);
   $("#cardTitle").textContent = buildDocLabel(doc);
   $("#cardMeta").textContent = doc.counterparty ? `Контрагент: ${doc.counterparty}` : "";
+  const stageColor = (stage && stage.color) || "#94a3b8";
   $("#cardStage").textContent = stage ? stage.name : "—";
+  $("#cardStage").style.background = stageColor;
+  $("#cardStage").style.color = textColorFor(stageColor);
 
   const stages = orderedStages();
   $("#advanceTarget").innerHTML = stages
@@ -381,10 +415,9 @@ function renderCard(doc) {
     filesBody.innerHTML = filesSorted
       .map((f) => {
         const fStage = getStage(f.stage_id);
-        const stageLabel = f.stage_name || (fStage ? fStage.name : "—");
         return `
         <tr>
-          <td><span class="badge">${escapeHtml(stageLabel)}</span></td>
+          <td>${stageBadge(fStage, f.stage_name)}</td>
           <td><a class="file-link" data-file="${f.stored_filename}">${escapeHtml(f.custom_name)}</a></td>
           <td>${escapeHtml(f.uploaded_at)}</td>
           <td><button class="btn btn-danger btn-small" data-del-file="${f.id}">Удалить</button></td>
@@ -457,6 +490,7 @@ function renderStagesList() {
       (s, i) => `
     <div class="stage-row" data-id="${s.id}">
       <span class="stage-order">${i + 1}</span>
+      <input type="color" value="${s.color || "#94a3b8"}" data-color-id="${s.id}" title="Цвет бейджа стадии">
       <input type="text" value="${escapeHtml(s.name)}" data-id="${s.id}">
       <button class="btn btn-secondary btn-small" data-up="${s.id}" ${i === 0 ? "disabled" : ""}>↑</button>
       <button class="btn btn-secondary btn-small" data-down="${s.id}" ${i === stages.length - 1 ? "disabled" : ""}>↓</button>
@@ -471,6 +505,13 @@ function renderStagesList() {
       stage.name = inp.value;
       await saveState();
       renderStagesSelects();
+    });
+  });
+  list.querySelectorAll("input[data-color-id]").forEach((inp) => {
+    inp.addEventListener("input", async () => {
+      const stage = getStage(Number(inp.dataset.colorId));
+      stage.color = inp.value;
+      await saveState();
     });
   });
   list.querySelectorAll("button[data-up]").forEach((btn) => {
@@ -639,4 +680,120 @@ $$(".modal-overlay").forEach((ov) => {
   ov.addEventListener("click", (e) => {
     if (e.target === ov) ov.classList.remove("open");
   });
+});
+
+/* -------------------------------------------------------------------------
+   Изменение ширины столбцов таблицы реестра (перетаскивание границы
+   заголовка). Таблица использует table-layout:fixed, поэтому ширина,
+   заданная на <th>, сохраняется и при перерисовке <tbody>.
+   ------------------------------------------------------------------------- */
+
+function makeColumnsResizable() {
+  const ths = $$("#registryTable thead th");
+  ths.forEach((th, idx) => {
+    if (idx === ths.length - 1) return; // последний столбец (кнопка) не тянем
+    const resizer = document.createElement("div");
+    resizer.className = "col-resizer";
+    th.appendChild(resizer);
+
+    resizer.addEventListener("mousedown", (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      const startX = e.clientX;
+      const startWidth = th.offsetWidth;
+      resizer.classList.add("active");
+
+      function onMove(ev) {
+        const newWidth = Math.max(50, startWidth + (ev.clientX - startX));
+        th.style.width = newWidth + "px";
+      }
+      function onUp() {
+        resizer.classList.remove("active");
+        document.removeEventListener("mousemove", onMove);
+        document.removeEventListener("mouseup", onUp);
+      }
+      document.addEventListener("mousemove", onMove);
+      document.addEventListener("mouseup", onUp);
+    });
+  });
+}
+makeColumnsResizable();
+
+/* -------------------------------------------------------------------------
+   Фильтрация по клику правой кнопкой мыши на заголовке столбца.
+   Работает на всех столбцах реестра (Документ, Вид, Контрагент, Сумма,
+   Стадия, Файлы) — на каждом из них можно выбрать одно значение из
+   списка встречающихся в реестре, чтобы отфильтровать таблицу. У каждого
+   столбца свой независимый фильтр, несколько фильтров можно сочетать.
+   ------------------------------------------------------------------------- */
+
+function closeColumnFilterMenu() {
+  $$(".col-filter-menu").forEach((m) => m.remove());
+}
+
+function showColumnFilterMenu(e, key) {
+  closeColumnFilterMenu();
+
+  const values = Array.from(new Set(state.documents.map(COLUMN_DEFS[key]))).sort((a, b) =>
+    a.localeCompare(b, "ru")
+  );
+
+  const menu = document.createElement("div");
+  menu.className = "col-filter-menu";
+
+  const allItem = document.createElement("div");
+  allItem.className = "col-filter-item" + (!Object.prototype.hasOwnProperty.call(columnFilters, key) ? " active" : "");
+  allItem.textContent = "Все";
+  allItem.addEventListener("click", () => {
+    delete columnFilters[key];
+    closeColumnFilterMenu();
+    renderTable();
+  });
+  menu.appendChild(allItem);
+
+  if (values.length) {
+    const divider = document.createElement("div");
+    divider.className = "col-filter-divider";
+    menu.appendChild(divider);
+  }
+
+  values.forEach((v) => {
+    const item = document.createElement("div");
+    item.className = "col-filter-item" + (columnFilters[key] === v ? " active" : "");
+    item.textContent = v;
+    item.addEventListener("click", () => {
+      columnFilters[key] = v;
+      closeColumnFilterMenu();
+      renderTable();
+    });
+    menu.appendChild(item);
+  });
+
+  document.body.appendChild(menu);
+
+  // Позиционируем и подправляем, если меню вылезает за край экрана
+  const menuRect = menu.getBoundingClientRect();
+  let left = e.clientX;
+  let top = e.clientY;
+  if (left + menuRect.width > window.innerWidth) left = window.innerWidth - menuRect.width - 8;
+  if (top + menuRect.height > window.innerHeight) top = window.innerHeight - menuRect.height - 8;
+  menu.style.left = Math.max(8, left) + "px";
+  menu.style.top = Math.max(8, top) + "px";
+}
+
+function wireColumnFilters() {
+  $$("#registryTable thead th[data-col]").forEach((th) => {
+    th.addEventListener("contextmenu", (e) => {
+      e.preventDefault();
+      showColumnFilterMenu(e, th.dataset.col);
+    });
+  });
+}
+wireColumnFilters();
+
+document.addEventListener("click", (e) => {
+  if (!e.target.closest(".col-filter-menu")) closeColumnFilterMenu();
+});
+document.addEventListener("contextmenu", (e) => {
+  if (!e.target.closest("th[data-col]")) closeColumnFilterMenu();
 });
