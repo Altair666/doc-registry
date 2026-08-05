@@ -148,11 +148,24 @@ async function loadState() {
   if (changed) await saveState();
 }
 
-async function saveState() {
-  const fh = await dirHandle.getFileHandle(REGISTRY_FILE, { create: true });
-  const writable = await fh.createWritable();
-  await writable.write(JSON.stringify(state, null, 2));
-  await writable.close();
+/** Общая очередь для saveState/saveConfig — гарантирует, что записи на
+    диск всегда идут строго друг за другом. Без этого при нескольких
+    быстрых сохранениях подряд (например, пара перетаскиваний столбцов
+    один за другим) более ранняя запись могла завершиться ПОЗЖЕ более
+    поздней и затереть на диске уже сохранённые свежие данные. */
+let _saveChain = Promise.resolve();
+function queueSave(fn) {
+  _saveChain = _saveChain.then(fn, fn);
+  return _saveChain;
+}
+
+function saveState() {
+  return queueSave(async () => {
+    const fh = await dirHandle.getFileHandle(REGISTRY_FILE, { create: true });
+    const writable = await fh.createWritable();
+    await writable.write(JSON.stringify(state, null, 2));
+    await writable.close();
+  });
 }
 
 /* --------------------------------------------------------------------- */
@@ -170,11 +183,13 @@ async function loadConfig() {
   }
 }
 
-async function saveConfig() {
-  const fh = await dirHandle.getFileHandle(CONFIG_FILE, { create: true });
-  const writable = await fh.createWritable();
-  await writable.write(JSON.stringify(config, null, 2));
-  await writable.close();
+function saveConfig() {
+  return queueSave(async () => {
+    const fh = await dirHandle.getFileHandle(CONFIG_FILE, { create: true });
+    const writable = await fh.createWritable();
+    await writable.write(JSON.stringify(config, null, 2));
+    await writable.close();
+  });
 }
 
 function addDocType(name) {
