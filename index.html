@@ -50,10 +50,10 @@
         <tr>
           <th data-col="document" data-width-key="document" style="width:190px">Документ</th>
           <th data-col="type" data-width-key="type" style="width:75px">Вид</th>
-          <th data-col="counterparty" data-width-key="counterparty" style="width:130px">Контрагент</th>
-          <th data-col="amount" data-width-key="amount" style="width:75px">Сумма</th>
-          <th data-col="stage" data-width-key="stage" style="width:95px">Стадия</th>
-          <th data-col="files" data-width-key="files" style="width:55px">Файлы</th>
+          <th data-col="counterparty" data-width-key="counterparty" style="width:125px">Контрагент</th>
+          <th data-col="amount" data-width-key="amount" style="width:70px">Сумма</th>
+          <th data-col="stage" data-width-key="stage" style="width:90px">Стадия</th>
+          <th data-col="files" data-width-key="files" style="width:70px">Файлы</th>
           <th data-width-key="actions" class="col-actions" style="width:112px"></th>
         </tr>
       </thead>
@@ -140,19 +140,18 @@
       <div class="group-workspace">
         <div id="groupCardsList" class="group-cards-list"></div>
         <div class="group-pdf-panel">
-          <div class="pdf-view-control">
-            <div class="pdf-view-toggle" id="pdfViewToggle">
-              <button type="button" class="pdf-view-btn" data-view="list">Список страниц</button>
-              <button type="button" class="pdf-view-btn active" data-view="max">Крупно</button>
-            </div>
-            <span class="pdf-zoom-slider-wrap" id="pdfZoomSliderWrap" style="display:none">
+          <div class="pdf-panel-header" id="pdfPanelHeader">
+            <span class="pdf-zoom-slider-wrap">
               <span class="muted">Масштаб</span>
-              <input type="range" id="groupZoom" min="20" max="90" value="45" step="5">
-              <span id="groupZoomValue" class="muted">45%</span>
+              <input type="range" id="groupZoom" min="20" max="100" value="100" step="5">
+              <span id="groupZoomValue" class="muted">100%</span>
             </span>
+            <button type="button" class="btn btn-secondary btn-small" id="btnShowHiddenPages" style="margin-left:auto">Показать скрытые страницы</button>
           </div>
           <p class="muted" id="groupPdfHint">Прикрепите PDF справа сверху, чтобы разместить страницы по группам.</p>
-          <div id="groupPdfPages" class="group-pdf-pages pdf-view-max"></div>
+          <div class="group-pdf-pages-scroll">
+            <div id="groupPdfPages" class="group-pdf-pages"></div>
+          </div>
         </div>
       </div>
     </div>
