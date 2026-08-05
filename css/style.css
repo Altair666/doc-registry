@@ -208,6 +208,21 @@ main { padding: 20px 28px 60px; }
 .form-grid input[type="file"] { padding: 6px 8px; }
 .form-grid input:disabled { background: #f2f3f5; color: var(--muted); cursor: not-allowed; }
 
+.file-input-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+.file-picker { display: flex; align-items: center; gap: 10px; cursor: pointer; margin-top: 2px; }
+.file-btn-visual { pointer-events: none; }
+label:has(.file-input-hidden) { cursor: pointer; }
+
 .combo { position: relative; width: 100%; }
 .combo select, .combo input { width: 100%; box-sizing: border-box; }
 
@@ -233,7 +248,134 @@ main { padding: 20px 28px 60px; }
 .stage-add-form { display: flex; gap: 8px; margin-top: 12px; }
 .stage-add-form input { flex: 1; padding: 8px 10px; border: 1px solid var(--border); border-radius: 8px; }
 
+.color-swatch-wrap { position: relative; width: 26px; height: 26px; flex: 0 0 auto; }
+.color-swatch-wrap input[type="color"] {
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: 50%;
+  cursor: pointer;
+  -webkit-appearance: none;
+  appearance: none;
+  overflow: hidden;
+}
+.color-swatch-wrap input[type="color"]::-webkit-color-swatch-wrapper { padding: 0; border-radius: 50%; }
+.color-swatch-wrap input[type="color"]::-webkit-color-swatch { border: none; border-radius: 50%; }
+.color-swatch-wrap input[type="color"]::-moz-color-swatch { border: none; border-radius: 50%; }
+.color-swatch-wrap .pencil-icon {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.95);
+  text-shadow: 0 0 2px rgba(0, 0, 0, 0.7);
+}
+
 .file-link { color: var(--primary); text-decoration: none; cursor: pointer; }
 .file-link:hover { text-decoration: underline; }
 
 .muted { color: var(--muted); font-size: 13px; }
+
+/* ==== Переключатель режима "Один / Группа" ==== */
+.mode-toggle { display: flex; gap: 6px; margin-bottom: 16px; background: #f0f1f4; border-radius: 999px; padding: 4px; width: fit-content; }
+.mode-toggle-btn { border: none; background: transparent; padding: 7px 16px; border-radius: 999px; font-size: 13px; font-weight: 600; color: var(--muted); cursor: pointer; }
+.mode-toggle-btn.active { background: var(--panel); color: var(--text); box-shadow: 0 1px 3px rgba(0,0,0,0.12); }
+
+/* ==== Полноэкранная модалка группового режима ==== */
+.modal-doc-group { max-width: 96vw; width: 96vw; height: 92vh; display: flex; flex-direction: column; }
+.modal-doc-group #singleModeWrap { display: none !important; }
+.modal-doc-group #groupModePanel { display: flex !important; flex-direction: column; flex: 1; min-height: 0; }
+
+.group-topbar { display: flex; align-items: center; gap: 18px; flex-wrap: wrap; padding-bottom: 12px; border-bottom: 1px solid var(--border); }
+.group-title { margin: 0; font-size: 18px; margin-right: 8px; }
+.group-count-label { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--muted); font-weight: 600; }
+
+.stepper { display: inline-flex; align-items: center; gap: 0; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
+.stepper button { border: none; background: #f2f3f5; width: 28px; height: 28px; font-size: 15px; cursor: pointer; color: var(--text); }
+.stepper button:hover { background: #e4e6eb; }
+.stepper input { width: 46px; text-align: center; border: none; border-left: 1px solid var(--border); border-right: 1px solid var(--border); height: 28px; font-size: 13px; -moz-appearance: textfield; }
+.stepper input::-webkit-outer-spin-button, .stepper input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+.stepper-small button, .stepper-small input { width: 22px; height: 22px; font-size: 12px; }
+.stepper-small input { width: 34px; }
+
+.group-workspace { display: flex; gap: 16px; flex: 1; min-height: 0; margin-top: 14px; }
+.group-cards-list { flex: 0 0 44%; min-width: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; padding-right: 6px; }
+.group-pdf-panel { flex: 1; min-width: 0; overflow-y: auto; border: 1px solid var(--border); border-radius: 10px; padding: 12px; background: #fafbfc; }
+
+.group-card { border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px; background: var(--panel); }
+.group-card-header { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; flex-wrap: wrap; }
+.group-card .form-grid { grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 0; }
+.group-card .form-grid label { font-size: 11px; }
+.group-card .form-grid input, .group-card .form-grid select, .group-card .form-grid textarea { padding: 6px 8px; font-size: 13px; }
+.group-field-with-add { display: flex; gap: 4px; align-items: center; }
+.group-field-with-add select { flex: 1; }
+
+.group-badge {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: 700;
+  color: #fff;
+  cursor: grab;
+  border: 3px solid transparent;
+  opacity: 0.55;
+  flex: 0 0 auto;
+}
+.group-badge.filled { opacity: 1; }
+.group-badge.confirmed { border-color: #16a34a; box-shadow: 0 0 0 2px rgba(22,163,74,0.25); }
+.group-badge:active { cursor: grabbing; }
+
+.icon-btn {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  border: 1px solid var(--border);
+  background: #fff;
+  cursor: pointer;
+  font-size: 13px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--muted);
+  margin-left: auto;
+}
+.icon-btn:hover { background: #f2f3f5; }
+.icon-btn-confirm { color: #16a34a; border-color: #bbf0cd; }
+.icon-btn-confirm:hover { background: #eafcf1; }
+
+.group-pdf-pages { display: flex; flex-wrap: wrap; gap: 12px; }
+.pdf-page { position: relative; width: 140px; border: 1px solid var(--border); border-radius: 8px; background: #fff; padding: 6px; text-align: center; }
+.pdf-page canvas { width: 100%; height: auto; display: block; border-radius: 4px; }
+.pdf-page-label { font-size: 11px; color: var(--muted); margin-top: 4px; }
+.pdf-page.dropzone-active { outline: 2px dashed var(--primary); outline-offset: 2px; }
+
+.pdf-page-overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(20, 22, 30, 0.55);
+  border-radius: 8px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+.group-badge-mini {
+  width: 26px; height: 26px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 11px; font-weight: 700; color: #fff;
+}
+.mini-btn {
+  width: 22px; height: 22px; border-radius: 50%; border: none;
+  font-size: 12px; cursor: pointer; display: flex; align-items: center; justify-content: center;
+}
+.mini-confirm { background: #16a34a; color: #fff; }
+.mini-cancel { background: #dc2626; color: #fff; }
