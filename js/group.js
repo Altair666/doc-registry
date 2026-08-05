@@ -14,9 +14,26 @@ let groupPdfBytesForSplit = null; // ArrayBuffer — отдельная копи
 let groupTotalPages = 0;
 let groupConsumedPages = new Set(); // номера страниц (1-based), уже подтверждённые за какой-то группой
 
-/** Ширина рендера канваса в пикселях — с запасом, чтобы при масштабе
-    100% (страница на всю ширину блока) картинка оставалась чёткой. */
+/** Ширина рендера канваса в пикселях — с запасом, чтобы страница
+    оставалась чёткой и в режиме "Крупно" (на всю ширину блока). */
 const GROUP_PDF_RENDER_WIDTH = 900;
+
+/* Режим просмотра страниц: "max" — по одной странице на всю ширину блока
+   (как раньше, без ползунка), "list" — компактный список с масштабом. */
+$$("#pdfViewToggle .pdf-view-btn").forEach((btn) => {
+  btn.addEventListener("click", () => {
+    $$("#pdfViewToggle .pdf-view-btn").forEach((b) => b.classList.remove("active"));
+    btn.classList.add("active");
+    const view = btn.dataset.view;
+    const pages = $("#groupPdfPages");
+    pages.classList.toggle("pdf-view-list", view === "list");
+    pages.classList.toggle("pdf-view-max", view === "max");
+    $("#pdfZoomSliderWrap").style.display = view === "list" ? "flex" : "none";
+    if (view === "list") {
+      pages.style.setProperty("--pdf-page-scale", $("#groupZoom").value + "%");
+    }
+  });
+});
 
 $("#groupZoom").addEventListener("input", () => {
   const val = $("#groupZoom").value;
@@ -88,9 +105,12 @@ function resetGroupModeUI() {
   $("#groupFileName").textContent = "Файл не выбран";
   $("#groupPdfHint").style.display = "block";
   $("#groupPdfPages").innerHTML = "";
-  $("#groupPdfPages").style.setProperty("--pdf-page-scale", "100%");
-  $("#groupZoom").value = 100;
-  $("#groupZoomValue").textContent = "100%";
+  $("#groupPdfPages").className = "group-pdf-pages pdf-view-max";
+  $("#groupPdfPages").style.removeProperty("--pdf-page-scale");
+  $$("#pdfViewToggle .pdf-view-btn").forEach((b) => b.classList.toggle("active", b.dataset.view === "max"));
+  $("#pdfZoomSliderWrap").style.display = "none";
+  $("#groupZoom").value = 45;
+  $("#groupZoomValue").textContent = "45%";
   $("#groupCountInput").value = 1;
 
   setGroupCount(1);
