@@ -120,6 +120,11 @@ main { padding: 20px 28px 60px; }
 .registry-table tbody tr:hover { background: #f7f9fe; }
 .registry-table td { user-select: text; }
 .row-open { white-space: nowrap; }
+.registry-table td.col-actions, .registry-table th.col-actions {
+  text-align: right;
+  overflow: visible;
+  white-space: nowrap;
+}
 
 .badge {
   display: inline-block;
