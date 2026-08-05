@@ -765,11 +765,18 @@ function updateTableTotalWidth() {
 }
 window.addEventListener("resize", () => updateTableTotalWidth());
 
+/** У каждого столбца — разумный потолок ширины, чтобы значение,
+    "убежавшее" из-за старой версии/бага, не сохранялось навечно и не
+    ломало таблицу молча при каждой загрузке. */
+const MAX_COLUMN_WIDTH = 500;
+
 function applyColumnWidths() {
   const ths = $$("#registryTable thead th[data-width-key]");
   ths.forEach((th) => {
     const saved = config.columnWidths && config.columnWidths[th.dataset.widthKey];
-    if (typeof saved === "number" && saved >= 50) th.style.width = saved + "px";
+    if (typeof saved === "number" && saved >= 50 && saved <= MAX_COLUMN_WIDTH) {
+      th.style.width = saved + "px";
+    }
   });
   if (ths.length) ths[0].dataset.ownWidth = parseFloat(ths[0].style.width) || 100;
   updateTableTotalWidth();
