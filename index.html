@@ -67,13 +67,34 @@
 <!-- Модалка: добавить/редактировать документ -->
 <div class="modal-overlay" id="modalDoc">
   <div class="modal modal-doc" id="modalDocInner">
-    <div class="mode-toggle" id="modeToggle">
-      <button type="button" class="mode-toggle-btn active" data-mode="single">Один документ</button>
-      <button type="button" class="mode-toggle-btn" data-mode="group">Группа документов</button>
+    <div class="doc-modal-topbar">
+      <div class="mode-toggle" id="modeToggle">
+        <button type="button" class="mode-toggle-btn active" data-mode="single">Один документ</button>
+        <button type="button" class="mode-toggle-btn" data-mode="group">Группа документов</button>
+      </div>
+      <h2 id="modalDocTitle" class="doc-modal-title">Новый документ</h2>
+
+      <div id="groupTopbarExtra" class="group-topbar-extra" style="display:none">
+        <label class="group-count-label">Кол-во групп
+          <span class="stepper">
+            <input type="number" id="groupCountInput" min="1" max="60" value="1">
+            <span class="stepper-arrows">
+              <button type="button" id="groupCountPlus" class="stepper-arrow stepper-arrow-up" title="Больше">▲</button>
+              <button type="button" id="groupCountMinus" class="stepper-arrow stepper-arrow-down" title="Меньше">▼</button>
+            </span>
+          </span>
+        </label>
+        <label class="file-picker" style="margin-left:auto">
+          <span class="btn btn-secondary btn-small file-btn-visual">Выбрать файл</span>
+          <span id="groupFileName" class="muted">Файл не выбран</span>
+          <input type="file" id="groupFile" accept="application/pdf" class="file-input-hidden">
+        </label>
+        <button type="button" class="btn btn-secondary" id="btnGroupCancel">Отмена</button>
+        <button type="button" class="btn btn-primary" id="btnGroupSave" disabled>Добавить документы</button>
+      </div>
     </div>
 
     <div id="singleModeWrap">
-      <h2 id="modalDocTitle">Новый документ</h2>
       <div class="form-grid">
         <label class="full">Прикрепить файл
           <span class="file-picker">
@@ -112,25 +133,6 @@
     </div>
 
     <div id="groupModePanel" style="display:none">
-      <div class="group-topbar">
-        <h2 class="group-title">Новый документ — группа</h2>
-        <label class="group-count-label">Кол-во групп
-          <span class="stepper">
-            <input type="number" id="groupCountInput" min="1" max="60" value="1">
-            <span class="stepper-arrows">
-              <button type="button" id="groupCountPlus" class="stepper-arrow stepper-arrow-up" title="Больше">▲</button>
-              <button type="button" id="groupCountMinus" class="stepper-arrow stepper-arrow-down" title="Меньше">▼</button>
-            </span>
-          </span>
-        </label>
-        <label class="file-picker" style="margin-left:auto">
-          <span class="btn btn-secondary btn-small file-btn-visual">Выбрать файл</span>
-          <span id="groupFileName" class="muted">Файл не выбран</span>
-          <input type="file" id="groupFile" accept="application/pdf" class="file-input-hidden">
-        </label>
-        <button type="button" class="btn btn-secondary" id="btnGroupCancel">Отмена</button>
-        <button type="button" class="btn btn-primary" id="btnGroupSave" disabled>Добавить документы</button>
-      </div>
       <p id="groupLoadingHint" class="muted" style="display:none">Загружаю инструменты для работы с PDF…</p>
 
       <div class="group-workspace">
