@@ -259,7 +259,7 @@ function renderTable() {
         <td>${escapeHtml(d.amount || "—")}</td>
         <td>${stageBadge(stage)}</td>
         <td>${d.files.length}</td>
-        <td><button type="button" class="btn btn-secondary btn-small row-open" data-id="${d.id}">Продвинуть →</button></td>
+        <td class="col-actions"><button type="button" class="btn btn-secondary btn-small row-open" data-id="${d.id}">Продвинуть →</button></td>
       </tr>`;
     })
     .join("");
