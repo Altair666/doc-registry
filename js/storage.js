@@ -109,9 +109,23 @@ async function verifyPermissionSilent(handle) {
 /* registry.json — документы, стадии, история */
 /* --------------------------------------------------------------------- */
 
+/** Палитра для автоматического назначения цвета новым стадиям. */
+const STAGE_PALETTE = ["#2f6fed", "#e08e0b", "#16a34a", "#dc2626", "#7c3aed", "#0891b2", "#db2777", "#65a30d"];
+
+/** Подбирает чёрный/белый текст в зависимости от яркости фона (для читаемости бейджа). */
+function textColorFor(bgHex) {
+  const hex = (bgHex || "#999999").replace("#", "");
+  const full = hex.length === 3 ? hex.split("").map((c) => c + c).join("") : hex;
+  const r = parseInt(full.slice(0, 2), 16) || 0;
+  const g = parseInt(full.slice(2, 4), 16) || 0;
+  const b = parseInt(full.slice(4, 6), 16) || 0;
+  const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+  return luminance > 0.6 ? "#1a1a1a" : "#ffffff";
+}
+
 function defaultState() {
-  const stages = ["Получен", "На проверке", "Утверждён", "В архиве"]
-    .map((name, i) => ({ id: i + 1, name, order_index: i }));
+  const names = ["Получен", "На проверке", "Утверждён", "В архиве"];
+  const stages = names.map((name, i) => ({ id: i + 1, name, order_index: i, color: STAGE_PALETTE[i % STAGE_PALETTE.length] }));
   return { nextDocId: 1, nextFileId: 1, nextStageId: stages.length + 1, stages, documents: [] };
 }
 
@@ -124,6 +138,14 @@ async function loadState() {
     state = defaultState();
     await saveState();
   }
+  let changed = false;
+  state.stages.forEach((s, i) => {
+    if (!s.color) {
+      s.color = STAGE_PALETTE[i % STAGE_PALETTE.length];
+      changed = true;
+    }
+  });
+  if (changed) await saveState();
 }
 
 async function saveState() {
