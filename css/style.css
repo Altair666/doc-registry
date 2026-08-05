@@ -220,7 +220,9 @@ main { padding: 20px 28px 60px; }
   border: 0;
 }
 .file-picker { display: flex; align-items: center; gap: 10px; cursor: pointer; margin-top: 2px; }
-.file-btn-visual { pointer-events: none; }
+.file-btn-visual { pointer-events: none; transition: background 0.1s, transform 0.05s; }
+.file-picker:hover .file-btn-visual { background: #dfe1e8; }
+.file-picker:active .file-btn-visual { background: #d2d4dc; transform: scale(0.97); }
 label:has(.file-input-hidden) { cursor: pointer; }
 
 .combo { position: relative; width: 100%; }
