@@ -44,20 +44,22 @@
     <select id="filterStage"><option value="">Все стадии</option></select>
   </div>
 
-  <table class="registry-table" id="registryTable">
-    <thead>
-      <tr>
-        <th data-col="document" style="width:220px">Документ</th>
-        <th data-col="type" style="width:90px">Вид</th>
-        <th data-col="counterparty" style="width:160px">Контрагент</th>
-        <th data-col="amount" style="width:90px">Сумма</th>
-        <th data-col="stage" style="width:120px">Стадия</th>
-        <th data-col="files" style="width:70px">Файлы</th>
-        <th class="col-actions" style="width:60px"></th>
-      </tr>
-    </thead>
-    <tbody id="docsBody"></tbody>
-  </table>
+  <div class="table-scroll">
+    <table class="registry-table" id="registryTable">
+      <thead>
+        <tr>
+          <th data-col="document" data-width-key="document" style="width:220px">Документ</th>
+          <th data-col="type" data-width-key="type" style="width:90px">Вид</th>
+          <th data-col="counterparty" data-width-key="counterparty" style="width:160px">Контрагент</th>
+          <th data-col="amount" data-width-key="amount" style="width:90px">Сумма</th>
+          <th data-col="stage" data-width-key="stage" style="width:120px">Стадия</th>
+          <th data-col="files" data-width-key="files" style="width:70px">Файлы</th>
+          <th data-width-key="actions" class="col-actions" style="width:60px"></th>
+        </tr>
+      </thead>
+      <tbody id="docsBody"></tbody>
+    </table>
+  </div>
   <p class="muted" style="margin-top:6px">Совет: правой кнопкой мыши по заголовку столбца — фильтр по значению. Границу заголовка можно тянуть, чтобы менять ширину столбца.</p>
   <div id="emptyState" class="empty-state" style="display:none">
     Пока нет ни одного документа. Нажмите «Добавить документ».
