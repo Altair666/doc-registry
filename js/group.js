@@ -13,32 +13,30 @@ let groupPdfDoc = null; // pdfjsLib document proxy (для рендера пре
 let groupPdfBytesForSplit = null; // ArrayBuffer — отдельная копия для pdf-lib
 let groupTotalPages = 0;
 let groupConsumedPages = new Set(); // номера страниц (1-based), уже подтверждённые за какой-то группой
+let pageStates = {}; // { [pageNumber]: { rotation: 0|90|180|270, deleted: bool } }
+let showHiddenPages = false;
 
 /** Ширина рендера канваса в пикселях — с запасом, чтобы страница
-    оставалась чёткой и в режиме "Крупно" (на всю ширину блока). */
+    оставалась чёткой даже при масштабе 100% (во всю ширину блока). */
 const GROUP_PDF_RENDER_WIDTH = 900;
 
-/* Режим просмотра страниц: "max" — по одной странице на всю ширину блока
-   (как раньше, без ползунка), "list" — компактный список с масштабом. */
-$$("#pdfViewToggle .pdf-view-btn").forEach((btn) => {
-  btn.addEventListener("click", () => {
-    $$("#pdfViewToggle .pdf-view-btn").forEach((b) => b.classList.remove("active"));
-    btn.classList.add("active");
-    const view = btn.dataset.view;
-    const pages = $("#groupPdfPages");
-    pages.classList.toggle("pdf-view-list", view === "list");
-    pages.classList.toggle("pdf-view-max", view === "max");
-    $("#pdfZoomSliderWrap").style.display = view === "list" ? "flex" : "none";
-    if (view === "list") {
-      pages.style.setProperty("--pdf-page-scale", $("#groupZoom").value + "%");
-    }
-  });
-});
+function getPageState(p) {
+  if (!pageStates[p]) pageStates[p] = { rotation: 0, deleted: false };
+  return pageStates[p];
+}
 
 $("#groupZoom").addEventListener("input", () => {
   const val = $("#groupZoom").value;
   $("#groupZoomValue").textContent = val + "%";
   $("#groupPdfPages").style.setProperty("--pdf-page-scale", val + "%");
+});
+
+$("#btnShowHiddenPages").addEventListener("click", () => {
+  showHiddenPages = !showHiddenPages;
+  $("#btnShowHiddenPages").textContent = showHiddenPages ? "Скрыть удалённые страницы" : "Показать скрытые страницы";
+  $("#btnShowHiddenPages").classList.toggle("btn-primary", showHiddenPages);
+  $("#btnShowHiddenPages").classList.toggle("btn-secondary", !showHiddenPages);
+  renderGroupPdfPages();
 });
 
 /* -------------------------------------------------------------------------
@@ -100,17 +98,19 @@ function resetGroupModeUI() {
   groupPdfBytesForSplit = null;
   groupTotalPages = 0;
   groupConsumedPages = new Set();
+  pageStates = {};
+  showHiddenPages = false;
 
   $("#groupFile").value = "";
   $("#groupFileName").textContent = "Файл не выбран";
   $("#groupPdfHint").style.display = "block";
   $("#groupPdfPages").innerHTML = "";
-  $("#groupPdfPages").className = "group-pdf-pages pdf-view-max";
-  $("#groupPdfPages").style.removeProperty("--pdf-page-scale");
-  $$("#pdfViewToggle .pdf-view-btn").forEach((b) => b.classList.toggle("active", b.dataset.view === "max"));
-  $("#pdfZoomSliderWrap").style.display = "none";
-  $("#groupZoom").value = 45;
-  $("#groupZoomValue").textContent = "45%";
+  $("#groupPdfPages").style.setProperty("--pdf-page-scale", "100%");
+  $("#groupZoom").value = 100;
+  $("#groupZoomValue").textContent = "100%";
+  $("#btnShowHiddenPages").textContent = "Показать скрытые страницы";
+  $("#btnShowHiddenPages").classList.remove("btn-primary");
+  $("#btnShowHiddenPages").classList.add("btn-secondary");
   $("#groupCountInput").value = 1;
 
   setGroupCount(1);
@@ -318,8 +318,8 @@ function placeBadgeOnPage(idx, pageNum) {
   const g = groups[idx];
   const count = g.pagesCount;
   for (let p = pageNum; p < pageNum + count; p++) {
-    if (p > groupTotalPages || groupConsumedPages.has(p)) {
-      alert("Недостаточно свободных страниц подряд начиная с этой, либо часть уже занята другой группой.");
+    if (p > groupTotalPages || groupConsumedPages.has(p) || getPageState(p).deleted) {
+      alert("Недостаточно свободных страниц подряд начиная с этой, либо часть уже занята/удалена.");
       return;
     }
   }
@@ -371,6 +371,11 @@ $("#groupFile").addEventListener("change", async () => {
   const renderBytes = new Uint8Array(buf.slice(0));
 
   groupConsumedPages = new Set();
+  pageStates = {};
+  showHiddenPages = false;
+  $("#btnShowHiddenPages").textContent = "Показать скрытые страницы";
+  $("#btnShowHiddenPages").classList.remove("btn-primary");
+  $("#btnShowHiddenPages").classList.add("btn-secondary");
   groups.forEach((g) => {
     g.confirmed = false;
     g.startPage = null;
@@ -380,6 +385,7 @@ $("#groupFile").addEventListener("change", async () => {
   const loadingTask = window.pdfjsLib.getDocument({ data: renderBytes });
   groupPdfDoc = await loadingTask.promise;
   groupTotalPages = groupPdfDoc.numPages;
+  for (let p = 1; p <= groupTotalPages; p++) pageStates[p] = { rotation: 0, deleted: false };
 
   $("#groupPdfHint").style.display = "none";
   await renderGroupPdfPages();
@@ -402,29 +408,69 @@ async function renderGroupPdfPages() {
     if (myToken !== groupPdfRenderToken) return; // подоспел более новый вызов — этот бросаем
     if (groupConsumedPages.has(p)) continue;
 
+    const st = getPageState(p);
+    if (st.deleted && !showHiddenPages) continue;
+
     const pageWrap = document.createElement("div");
-    pageWrap.className = "pdf-page";
+    pageWrap.className = "pdf-page" + (st.deleted ? " pdf-page-deleted" : "");
     pageWrap.dataset.page = String(p);
+
+    const actions = document.createElement("div");
+    actions.className = "pdf-page-actions";
+    if (st.deleted) {
+      actions.innerHTML = `<button type="button" class="pdf-page-btn pdf-page-btn-restore" data-restore="${p}" title="Вернуть страницу">Вернуть</button>`;
+    } else {
+      actions.innerHTML =
+        `<button type="button" class="pdf-page-btn" data-rotate="${p}" title="Повернуть">⟳</button>` +
+        `<button type="button" class="pdf-page-btn pdf-page-btn-danger" data-delete="${p}" title="Удалить страницу">✕</button>`;
+    }
+    pageWrap.appendChild(actions);
 
     const canvas = document.createElement("canvas");
     pageWrap.appendChild(canvas);
     const label = document.createElement("div");
     label.className = "pdf-page-label";
-    label.textContent = "Стр. " + p;
+    label.textContent = "Стр. " + p + (st.deleted ? " (удалена)" : "");
     pageWrap.appendChild(label);
     container.appendChild(pageWrap);
 
     const page = await groupPdfDoc.getPage(p);
     if (myToken !== groupPdfRenderToken) return;
-    const baseViewport = page.getViewport({ scale: 1 });
+    const baseViewport = page.getViewport({ scale: 1, rotation: (page.rotate + st.rotation) % 360 });
     const scale = GROUP_PDF_RENDER_WIDTH / baseViewport.width;
-    const viewport = page.getViewport({ scale });
+    const viewport = page.getViewport({ scale, rotation: (page.rotate + st.rotation) % 360 });
     canvas.width = viewport.width;
     canvas.height = viewport.height;
     await page.render({ canvasContext: canvas.getContext("2d"), viewport }).promise;
     if (myToken !== groupPdfRenderToken) return;
 
-    wirePageDropzone(pageWrap, p);
+    const restoreBtn = actions.querySelector("[data-restore]");
+    if (restoreBtn) {
+      restoreBtn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        getPageState(p).deleted = false;
+        renderGroupPdfPages();
+      });
+    }
+    const rotateBtn = actions.querySelector("[data-rotate]");
+    if (rotateBtn) {
+      rotateBtn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        const s = getPageState(p);
+        s.rotation = (s.rotation + 90) % 360;
+        renderGroupPdfPages();
+      });
+    }
+    const deleteBtn = actions.querySelector("[data-delete]");
+    if (deleteBtn) {
+      deleteBtn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        getPageState(p).deleted = true;
+        renderGroupPdfPages();
+      });
+    }
+
+    if (!st.deleted) wirePageDropzone(pageWrap, p);
   }
 
   if (myToken !== groupPdfRenderToken) return;
@@ -521,7 +567,15 @@ $("#btnGroupSave").addEventListener("click", async () => {
     const pageIndices = [];
     for (let p = g.startPage; p < g.startPage + g.pagesCount; p++) pageIndices.push(p - 1);
     const copiedPages = await outPdf.copyPages(srcPdf, pageIndices);
-    copiedPages.forEach((pg) => outPdf.addPage(pg));
+    copiedPages.forEach((pg, i) => {
+      const pageNum = g.startPage + i;
+      const extra = getPageState(pageNum).rotation || 0;
+      if (extra) {
+        const current = pg.getRotation().angle || 0;
+        pg.setRotation(PDFLib.degrees((current + extra) % 360));
+      }
+      outPdf.addPage(pg);
+    });
     const outBytes = await outPdf.save();
     const outFile = new File([outBytes], "scan.pdf", { type: "application/pdf" });
 
