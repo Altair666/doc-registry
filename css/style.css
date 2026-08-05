@@ -361,19 +361,19 @@ label:has(.file-input-hidden) { cursor: pointer; }
 .group-badge {
   min-width: 30px;
   height: 26px;
-  padding: 0 9px;
+  padding: 0 10px;
   border-radius: 13px;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 11px;
+  font-size: 10.5px;
   font-weight: 700;
   color: #fff;
   cursor: grab;
   border: 2px solid transparent;
   opacity: 0.55;
   flex: 0 1 auto;
-  max-width: 120px;
+  max-width: 100%;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -399,8 +399,22 @@ label:has(.file-input-hidden) { cursor: pointer; }
 .icon-btn-confirm { color: #16a34a; border-color: #bbf0cd; }
 .icon-btn-confirm:hover { background: #eafcf1; }
 
-.group-pdf-pages { display: flex; flex-wrap: wrap; gap: 12px; }
-.pdf-page { position: relative; width: 140px; border: 1px solid var(--border); border-radius: 8px; background: #fff; padding: 6px; text-align: center; }
+.pdf-zoom-control { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; font-size: 12px; }
+.pdf-zoom-control input[type="range"] { flex: 1; max-width: 220px; }
+.pdf-zoom-control #groupZoomValue { width: 36px; text-align: right; }
+
+.group-pdf-pages { display: flex; flex-direction: column; align-items: center; gap: 16px; }
+.pdf-page {
+  position: relative;
+  width: var(--pdf-page-scale, 100%);
+  max-width: 100%;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: #fff;
+  padding: 8px;
+  text-align: center;
+  transition: width 0.1s;
+}
 .pdf-page canvas { width: 100%; height: auto; display: block; border-radius: 4px; }
 .pdf-page-label { font-size: 11px; color: var(--muted); margin-top: 4px; }
 .pdf-page.dropzone-active { outline: 2px dashed var(--primary); outline-offset: 2px; }
