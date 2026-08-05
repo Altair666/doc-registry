@@ -18,4 +18,5 @@
 const DEFAULT_CONFIG = {
   docTypes: ["УПД", "АКТ", "ТН"],
   counterparties: [],
+  columnWidths: {}, // ширины столбцов реестра, ключ = data-width-key заголовка
 };
