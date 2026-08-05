@@ -58,7 +58,7 @@ main { padding: 20px 28px 60px; }
   overflow: hidden;
 }
 .table-scroll { overflow-x: auto; border-radius: var(--radius); }
-.registry-table { table-layout: fixed; width: max-content; min-width: 100%; }
+.registry-table { table-layout: fixed; }
 .registry-table th, .registry-table td,
 .files-table th, .files-table td {
   padding: 10px 12px;
@@ -87,11 +87,25 @@ main { padding: 20px 28px 60px; }
   top: 0;
   right: 0;
   bottom: 0;
-  width: 6px;
+  width: 10px;
   cursor: col-resize;
   z-index: 5;
 }
-.col-resizer:hover, .col-resizer.active { background: var(--primary); opacity: 0.4; }
+.col-resizer::after {
+  content: "";
+  position: absolute;
+  top: 22%;
+  bottom: 22%;
+  right: 4px;
+  width: 2px;
+  border-radius: 1px;
+  background: var(--border);
+  transition: background 0.1s, width 0.1s;
+}
+.col-resizer:hover::after, .col-resizer.active::after {
+  background: var(--primary);
+  width: 3px;
+}
 
 .col-filter-menu {
   position: fixed;
@@ -120,11 +134,14 @@ main { padding: 20px 28px 60px; }
 .col-filter-divider { border-top: 1px solid var(--border); margin: 4px 0; }
 .registry-table tbody tr:hover { background: #f7f9fe; }
 .registry-table td { user-select: text; }
-.row-open { white-space: nowrap; }
+.row-open {
+  white-space: nowrap;
+  padding: 5px 8px;
+  font-size: 12px;
+}
 .registry-table td.col-actions, .registry-table th.col-actions {
   text-align: right;
-  overflow: visible;
-  white-space: nowrap;
+  overflow: hidden;
 }
 
 .badge {
