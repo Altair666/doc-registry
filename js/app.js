@@ -713,15 +713,29 @@ $$(".modal-overlay").forEach((ov) => {
 /** Выставляет width таблицы = сумма ширин всех столбцов. Вызывается один
     раз при входе в приложение — дальше сумма не меняется сама по себе,
     т.к. ресайз всегда переносит ширину между соседними столбцами. */
+/** Выставляет width таблицы = сумма ширин всех столбцов. Если эта сумма
+    меньше ширины блока (.table-scroll) — растягивает первый столбец
+    ("Документ"), чтобы таблица не была уже страницы. Если сумма больше —
+    ничего не подгоняет, просто появляется горизонтальный скролл (это
+    нормально — так и должно быть, когда столбцы шире страницы). */
 function updateTableTotalWidth() {
   const table = $("#registryTable");
+  const scrollEl = $(".table-scroll");
   const ths = $$("#registryTable thead th[data-width-key]");
   let total = 0;
   ths.forEach((th) => {
     total += parseFloat(th.style.width) || th.getBoundingClientRect().width || 0;
   });
+  const available = scrollEl ? scrollEl.clientWidth : 0;
+  if (available > 0 && total < available && ths.length) {
+    const firstTh = ths[0];
+    const firstWidth = parseFloat(firstTh.style.width) || 0;
+    firstTh.style.width = firstWidth + (available - total) + "px";
+    total = available;
+  }
   if (total > 0) table.style.width = total + "px";
 }
+window.addEventListener("resize", () => updateTableTotalWidth());
 
 function applyColumnWidths() {
   if (config.columnWidths) {
