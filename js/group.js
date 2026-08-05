@@ -145,38 +145,43 @@ function renderGroupCards() {
       const cpOptions =
         `<option value="" ${g.counterparty ? "" : "selected"}>—</option>` +
         config.counterparties.map((c) => `<option value="${escapeHtml(c)}" ${c === g.counterparty ? "selected" : ""}>${escapeHtml(c)}</option>`).join("");
+      const badgeLabel = g.doc_type ? escapeHtml(g.doc_type) : String(idx + 1);
       return `
       <div class="group-card" data-group="${idx}">
         <div class="group-card-header">
           <span class="group-badge${isGroupDataFilled(g) ? " filled" : ""}${g.confirmed ? " confirmed" : ""}"
-                data-badge="${idx}" draggable="true" style="background:${g.color}" title="Перетащите на страницу справа">${idx + 1}</span>
-          <label class="group-pages-label muted" style="font-size:11px">Стр.
+                data-badge="${idx}" draggable="true" style="background:${g.color}" title="Перетащите на страницу справа">${badgeLabel}</span>
+          <label class="group-pages-label muted">Стр.
             <span class="stepper stepper-small">
-              <button type="button" data-pages-minus="${idx}">−</button>
               <input type="number" min="1" max="99" value="${g.pagesCount}" data-pages-input="${idx}">
-              <button type="button" data-pages-plus="${idx}">+</button>
+              <span class="stepper-arrows">
+                <button type="button" data-pages-plus="${idx}" class="stepper-arrow stepper-arrow-up">▲</button>
+                <button type="button" data-pages-minus="${idx}" class="stepper-arrow stepper-arrow-down">▼</button>
+              </span>
             </span>
           </label>
-          <button type="button" class="icon-btn" data-reset="${idx}" title="Сбросить размещение">↺</button>
-          <button type="button" class="icon-btn icon-btn-confirm" data-confirm="${idx}" title="Подтвердить размещение">✓</button>
+          <span class="group-card-actions">
+            <button type="button" class="icon-btn" data-reset="${idx}" title="Сбросить размещение">↺</button>
+            <button type="button" class="icon-btn icon-btn-confirm" data-confirm="${idx}" title="Подтвердить размещение">✓</button>
+          </span>
         </div>
-        <div class="form-grid">
-          <label>Дата <input type="date" data-field="doc_date" data-idx="${idx}" value="${g.doc_date || ""}"></label>
-          <label>Вид документа
+        <div class="form-grid group-fields-grid">
+          <label class="f-type compact">Вид документа
             <span class="group-field-with-add">
               <select data-field="doc_type" data-idx="${idx}">${typeOptions}</select>
               <button type="button" class="icon-btn" data-add-type="${idx}" title="Добавить новый вид">+</button>
             </span>
           </label>
-          <label>Номер документа <input type="text" data-field="number" data-idx="${idx}" value="${escapeHtml(g.number)}"></label>
-          <label>Контрагент
+          <label class="f-date compact">Дата <input type="date" data-field="doc_date" data-idx="${idx}" value="${g.doc_date || ""}"></label>
+          <label class="f-number">Номер документа <input type="text" data-field="number" data-idx="${idx}" value="${escapeHtml(g.number)}"></label>
+          <label class="f-cp">Контрагент
             <span class="group-field-with-add">
               <select data-field="counterparty" data-idx="${idx}">${cpOptions}</select>
               <button type="button" class="icon-btn" data-add-cp="${idx}" title="Добавить нового контрагента">+</button>
             </span>
           </label>
-          <label>Сумма <input type="text" data-field="amount" data-idx="${idx}" value="${escapeHtml(g.amount)}"></label>
-          <label class="full">Комментарий <textarea rows="1" data-field="comment" data-idx="${idx}">${escapeHtml(g.comment)}</textarea></label>
+          <label class="f-amount">Сумма <input type="text" data-field="amount" data-idx="${idx}" value="${escapeHtml(g.amount)}"></label>
+          <label class="f-comment full">Комментарий <textarea rows="1" data-field="comment" data-idx="${idx}">${escapeHtml(g.comment)}</textarea></label>
         </div>
       </div>`;
     })
@@ -262,8 +267,10 @@ function wireGroupCardEvents() {
 function updateGroupBadgeVisual(idx) {
   const badge = $(`.group-badge[data-badge="${idx}"]`);
   if (!badge) return;
-  badge.classList.toggle("filled", isGroupDataFilled(groups[idx]));
-  badge.classList.toggle("confirmed", !!groups[idx].confirmed);
+  const g = groups[idx];
+  badge.classList.toggle("filled", isGroupDataFilled(g));
+  badge.classList.toggle("confirmed", !!g.confirmed);
+  badge.textContent = g.doc_type || String(idx + 1);
 }
 
 /* -------------------------------------------------------------------------
@@ -414,7 +421,7 @@ function renderPendingOverlay(pageEl, idx, showControls) {
   const overlay = document.createElement("div");
   overlay.className = "pdf-page-overlay";
   overlay.innerHTML =
-    `<span class="group-badge-mini" style="background:${g.color}">${idx + 1}</span>` +
+    `<span class="group-badge-mini" style="background:${g.color}">${escapeHtml(g.doc_type || String(idx + 1))}</span>` +
     (showControls
       ? `<span>
            <button type="button" class="mini-btn mini-confirm" data-mini-confirm="${idx}" title="Подтвердить">✓</button>
