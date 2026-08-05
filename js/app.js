@@ -277,6 +277,7 @@ function renderTable() {
   });
 
   $("#emptyState").style.display = rows.length ? "none" : "block";
+  updateTableTotalWidth();
 }
 
 $("#search").addEventListener("input", renderTable);
@@ -718,32 +719,44 @@ $$(".modal-overlay").forEach((ov) => {
     ("Документ"), чтобы таблица не была уже страницы. Если сумма больше —
     ничего не подгоняет, просто появляется горизонтальный скролл (это
     нормально — так и должно быть, когда столбцы шире страницы). */
+/** Выставляет width таблицы = сумма ширин всех столбцов. Если эта сумма
+    меньше ширины блока (.table-scroll) — растягивает первый столбец
+    ("Документ"), чтобы таблица не была уже страницы; если места стало
+    МЕНЬШЕ (например, появился вертикальный скролл страницы после
+    добавления строк) — растяжение уменьшается обратно. "Истинная"
+    (не растянутая) ширина первого столбца хранится в data-own-width,
+    чтобы растяжение каждый раз считалось с нуля, а не накапливалось.
+    Если сумма столбцов больше блока — ничего не подгоняет, просто
+    появляется горизонтальный скролл (это нормально). */
 function updateTableTotalWidth() {
   const table = $("#registryTable");
   const scrollEl = $(".table-scroll");
   const ths = $$("#registryTable thead th[data-width-key]");
-  let total = 0;
-  ths.forEach((th) => {
-    total += parseFloat(th.style.width) || th.getBoundingClientRect().width || 0;
-  });
-  const available = scrollEl ? scrollEl.clientWidth : 0;
-  if (available > 0 && total < available && ths.length) {
-    const firstTh = ths[0];
-    const firstWidth = parseFloat(firstTh.style.width) || 0;
-    firstTh.style.width = firstWidth + (available - total) + "px";
-    total = available;
+  if (!ths.length) return;
+
+  const firstTh = ths[0];
+  const ownFirstWidth = parseFloat(firstTh.dataset.ownWidth) || parseFloat(firstTh.style.width) || 100;
+
+  let restSum = 0;
+  for (let i = 1; i < ths.length; i++) {
+    restSum += parseFloat(ths[i].style.width) || 0;
   }
-  if (total > 0) table.style.width = total + "px";
+
+  const available = scrollEl ? scrollEl.clientWidth : 0;
+  const firstWidth = available > 0 ? Math.max(ownFirstWidth, available - restSum) : ownFirstWidth;
+
+  firstTh.style.width = firstWidth + "px";
+  table.style.width = firstWidth + restSum + "px";
 }
 window.addEventListener("resize", () => updateTableTotalWidth());
 
 function applyColumnWidths() {
-  if (config.columnWidths) {
-    $$("#registryTable thead th[data-width-key]").forEach((th) => {
-      const saved = config.columnWidths[th.dataset.widthKey];
-      if (typeof saved === "number" && saved >= 50) th.style.width = saved + "px";
-    });
-  }
+  const ths = $$("#registryTable thead th[data-width-key]");
+  ths.forEach((th) => {
+    const saved = config.columnWidths && config.columnWidths[th.dataset.widthKey];
+    if (typeof saved === "number" && saved >= 50) th.style.width = saved + "px";
+  });
+  if (ths.length) ths[0].dataset.ownWidth = parseFloat(ths[0].style.width) || 100;
   updateTableTotalWidth();
 }
 
@@ -770,11 +783,14 @@ function makeColumnsResizable() {
         newWidth = Math.max(50, Math.min(combined - 50, newWidth));
         th.style.width = newWidth + "px";
         nextTh.style.width = combined - newWidth + "px";
+        if (idx === 0) th.dataset.ownWidth = newWidth;
+        updateTableTotalWidth();
       }
       async function onUp() {
         resizer.classList.remove("active");
         document.removeEventListener("mousemove", onMove);
         document.removeEventListener("mouseup", onUp);
+        if (idx === 0) th.dataset.ownWidth = parseFloat(th.style.width);
         if (!config.columnWidths) config.columnWidths = {};
         config.columnWidths[th.dataset.widthKey] = parseFloat(th.style.width);
         config.columnWidths[nextTh.dataset.widthKey] = parseFloat(nextTh.style.width);
