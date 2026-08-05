@@ -125,6 +125,7 @@ function enterApp() {
   $("#btnAdd").disabled = false;
   $("#folderStatus").textContent = "Папка подключена: " + (dirHandle.name || "");
   $("#btnConnect").textContent = "Сменить папку";
+  applyColumnWidths();
   renderStagesSelects();
   renderTable();
 }
@@ -702,12 +703,22 @@ $$(".modal-overlay").forEach((ov) => {
 
 /* -------------------------------------------------------------------------
    Изменение ширины столбцов таблицы реестра (перетаскивание границы
-   заголовка). Таблица использует table-layout:fixed, поэтому ширина,
-   заданная на <th>, сохраняется и при перерисовке <tbody>.
+   заголовка). Таблица использует table-layout:fixed и НЕ подгоняется под
+   100% ширины контейнера (см. .table-scroll/.registry-table в CSS) —
+   поэтому при перетягивании одной границы остальные столбцы не "плывут".
+   Итоговые ширины сохраняются в config.columnWidths (config.json).
    ------------------------------------------------------------------------- */
 
+function applyColumnWidths() {
+  if (!config.columnWidths) return;
+  $$("#registryTable thead th[data-width-key]").forEach((th) => {
+    const saved = config.columnWidths[th.dataset.widthKey];
+    if (typeof saved === "number" && saved >= 50) th.style.width = saved + "px";
+  });
+}
+
 function makeColumnsResizable() {
-  const ths = $$("#registryTable thead th");
+  const ths = $$("#registryTable thead th[data-width-key]");
   ths.forEach((th, idx) => {
     if (idx === ths.length - 1) return; // последний столбец (кнопка) не тянем
     const resizer = document.createElement("div");
@@ -718,17 +729,21 @@ function makeColumnsResizable() {
       e.preventDefault();
       e.stopPropagation();
       const startX = e.clientX;
-      const startWidth = th.offsetWidth;
+      const startWidth = th.getBoundingClientRect().width || parseFloat(th.style.width) || 100;
+      let currentWidth = startWidth;
       resizer.classList.add("active");
 
       function onMove(ev) {
-        const newWidth = Math.max(50, startWidth + (ev.clientX - startX));
-        th.style.width = newWidth + "px";
+        currentWidth = Math.max(50, Math.round(startWidth + (ev.clientX - startX)));
+        th.style.width = currentWidth + "px";
       }
-      function onUp() {
+      async function onUp() {
         resizer.classList.remove("active");
         document.removeEventListener("mousemove", onMove);
         document.removeEventListener("mouseup", onUp);
+        if (!config.columnWidths) config.columnWidths = {};
+        config.columnWidths[th.dataset.widthKey] = currentWidth;
+        await saveConfig();
       }
       document.addEventListener("mousemove", onMove);
       document.addEventListener("mouseup", onUp);
