@@ -66,38 +66,78 @@
 
 <!-- Модалка: добавить/редактировать документ -->
 <div class="modal-overlay" id="modalDoc">
-  <div class="modal modal-doc">
-    <h2 id="modalDocTitle">Новый документ</h2>
-    <div class="form-grid">
-      <label class="full">Прикрепить файл
-        <input type="file" id="fFile">
-      </label>
-      <p class="full muted" style="margin:-6px 0 0">Имя файла подписывать не нужно — соберётся само из вида, номера и даты (например «УПД №2594 от 31.07.26»).</p>
-
-      <label class="full">Дата <input id="fDate" type="date" disabled></label>
-
-      <label>Вид документа
-        <div class="combo">
-          <select id="fType"></select>
-          <input type="text" id="fTypeInput" style="display:none">
-        </div>
-      </label>
-      <label>Номер документа <input id="fNumber" type="text" placeholder="например: 2594"></label>
-
-      <label class="full">Контрагент
-        <div class="combo">
-          <select id="fCounterparty"></select>
-          <input type="text" id="fCounterpartyInput" style="display:none">
-        </div>
-      </label>
-
-      <label class="full">Сумма <input id="fAmount" type="text"></label>
-      <label class="full">Комментарий <textarea id="fComment" rows="2"></textarea></label>
+  <div class="modal modal-doc" id="modalDocInner">
+    <div class="mode-toggle" id="modeToggle">
+      <button type="button" class="mode-toggle-btn active" data-mode="single">Один документ</button>
+      <button type="button" class="mode-toggle-btn" data-mode="group">Группа документов</button>
     </div>
-    <div class="modal-actions">
-      <span id="saveHint" class="muted" style="margin-right:auto">Чтобы сохранить: прикрепите файл, укажите вид и номер документа</span>
-      <button class="btn btn-secondary" id="btnDocCancel">Отмена</button>
-      <button class="btn btn-primary" id="btnDocSave" disabled>Сохранить</button>
+
+    <div id="singleModeWrap">
+      <h2 id="modalDocTitle">Новый документ</h2>
+      <div class="form-grid">
+        <label class="full">Прикрепить файл
+          <span class="file-picker">
+            <span class="btn btn-secondary btn-small file-btn-visual">Выбрать файл</span>
+            <span id="fFileName" class="muted">Файл не выбран</span>
+          </span>
+          <input type="file" id="fFile" class="file-input-hidden">
+        </label>
+        <p class="full muted" style="margin:-6px 0 0">Имя файла подписывать не нужно — соберётся само из вида, номера и даты (например «УПД №2594 от 31.07.26»).</p>
+
+        <label class="full">Дата <input id="fDate" type="date" disabled></label>
+
+        <label>Вид документа
+          <div class="combo">
+            <select id="fType"></select>
+            <input type="text" id="fTypeInput" style="display:none">
+          </div>
+        </label>
+        <label>Номер документа <input id="fNumber" type="text" placeholder="например: 2594"></label>
+
+        <label class="full">Контрагент
+          <div class="combo">
+            <select id="fCounterparty"></select>
+            <input type="text" id="fCounterpartyInput" style="display:none">
+          </div>
+        </label>
+
+        <label class="full">Сумма <input id="fAmount" type="text"></label>
+        <label class="full">Комментарий <textarea id="fComment" rows="2"></textarea></label>
+      </div>
+      <div class="modal-actions">
+        <span id="saveHint" class="muted" style="margin-right:auto">Чтобы сохранить: прикрепите файл, укажите вид и номер документа</span>
+        <button class="btn btn-secondary" id="btnDocCancel">Отмена</button>
+        <button class="btn btn-primary" id="btnDocSave" disabled>Сохранить</button>
+      </div>
+    </div>
+
+    <div id="groupModePanel" style="display:none">
+      <div class="group-topbar">
+        <h2 class="group-title">Новый документ — группа</h2>
+        <label class="group-count-label">Кол-во групп
+          <span class="stepper">
+            <button type="button" id="groupCountMinus" class="btn btn-secondary btn-small">−</button>
+            <input type="number" id="groupCountInput" min="1" max="60" value="1">
+            <button type="button" id="groupCountPlus" class="btn btn-secondary btn-small">+</button>
+          </span>
+        </label>
+        <span class="file-picker" style="margin-left:auto">
+          <span class="btn btn-primary btn-small file-btn-visual" id="groupFileBtn">Прикрепить PDF</span>
+          <span id="groupFileName" class="muted">Файл не выбран</span>
+        </span>
+        <input type="file" id="groupFile" accept="application/pdf" class="file-input-hidden">
+        <button type="button" class="btn btn-secondary" id="btnGroupCancel">Отмена</button>
+        <button type="button" class="btn btn-primary" id="btnGroupSave" disabled>Добавить документы</button>
+      </div>
+      <p id="groupLoadingHint" class="muted" style="display:none">Загружаю инструменты для работы с PDF…</p>
+
+      <div class="group-workspace">
+        <div id="groupCardsList" class="group-cards-list"></div>
+        <div class="group-pdf-panel">
+          <p class="muted" id="groupPdfHint">Прикрепите PDF справа сверху, чтобы разместить страницы по группам.</p>
+          <div id="groupPdfPages" class="group-pdf-pages"></div>
+        </div>
+      </div>
     </div>
   </div>
 </div>
@@ -120,7 +160,11 @@
           <select id="advanceTarget"></select>
         </label>
         <label>Приложить файл новой версии (необязательно)
-          <input type="file" id="advanceFile">
+          <span class="file-picker">
+            <span class="btn btn-secondary btn-small file-btn-visual">Выбрать файл</span>
+            <span id="advanceFileName" class="muted">Файл не выбран</span>
+          </span>
+          <input type="file" id="advanceFile" class="file-input-hidden">
         </label>
         <button type="submit" class="btn btn-primary">Перевести на стадию</button>
       </form>
@@ -195,5 +239,6 @@
 <script src="js/config.js"></script>
 <script src="js/storage.js"></script>
 <script src="js/app.js"></script>
+<script src="js/group.js"></script>
 </body>
 </html>
