@@ -791,6 +791,10 @@ function applyColumnWidths() {
     if (typeof saved === "number" && saved >= min && saved <= MAX_COLUMN_WIDTH) {
       th.style.width = saved + "px";
     }
+    // "Естественный" размер столбца — то, к чему он должен возвращаться,
+    // когда сосед освобождает место при обратном перетаскивании (а не
+    // раздуваться до "как получится" — иначе таблица не сжимается назад).
+    th.dataset.naturalWidth = parseFloat(th.style.width) || 100;
   });
   if (ths.length) ths[0].dataset.ownWidth = parseFloat(ths[0].style.width) || 100;
   updateTableTotalWidth();
@@ -895,23 +899,38 @@ function makeColumnsResizable() {
       const startX = e.clientX;
       const startWidth = parseFloat(th.style.width) || th.getBoundingClientRect().width || 100;
       const nextStartWidth = parseFloat(nextTh.style.width) || nextTh.getBoundingClientRect().width || 100;
-      const combined = startWidth + nextStartWidth;
       const minTh = minWidthFor(th.dataset.widthKey);
       const minNext = minWidthFor(nextTh.dataset.widthKey);
+      const naturalNext = parseFloat(nextTh.dataset.naturalWidth) || nextStartWidth;
       resizer.classList.add("active");
       if (idx === 0) resizingFirstColumnManually = true;
 
       function onMove(ev) {
-        // Пока соседу есть куда сжиматься — просто переливаем ширину между
-        // двумя столбцами (общая ширина таблицы не меняется, граница
-        // таблицы неподвижна). Как только сосед упёрся в свой минимум,
-        // дальнейшее движение мыши уже не забирает у него ширину, а
-        // добавляет её к общей ширине таблицы — тогда появляется
-        // горизонтальный скролл, если места на экране не хватает.
         let desired = Math.round(startWidth + (ev.clientX - startX));
         desired = Math.max(minTh, desired);
-        let nextWidth = combined - desired;
-        if (nextWidth < minNext) nextWidth = minNext;
+
+        let nextWidth;
+        if (desired <= startWidth) {
+          // Сжимаем th — освобождённое место в первую очередь возвращаем
+          // соседу, но только до его "естественного" размера. Если сосед
+          // и так уже на нём (или его превышает после предыдущего
+          // "перелива"), дальше просто уменьшаем общую ширину таблицы —
+          // иначе сосед раздувался бы бесконечно и таблица не сжималась
+          // бы назад.
+          const freed = startWidth - desired;
+          if (nextStartWidth < naturalNext) {
+            const room = naturalNext - nextStartWidth;
+            nextWidth = nextStartWidth + Math.min(freed, room);
+          } else {
+            nextWidth = nextStartWidth;
+          }
+        } else {
+          // Расширяем th — сначала забираем у соседа, пока не упрёмся в
+          // его минимум; дальше рост уходит в общую ширину таблицы
+          // (появляется горизонтальный скролл, если места не хватает).
+          const grow = desired - startWidth;
+          nextWidth = Math.max(minNext, nextStartWidth - grow);
+        }
 
         th.style.width = desired + "px";
         nextTh.style.width = nextWidth + "px";
@@ -922,6 +941,7 @@ function makeColumnsResizable() {
         resizer.classList.remove("active");
         document.removeEventListener("mousemove", onMove);
         document.removeEventListener("mouseup", onUp);
+        th.dataset.naturalWidth = parseFloat(th.style.width);
         if (idx === 0) {
           th.dataset.ownWidth = parseFloat(th.style.width);
           resizingFirstColumnManually = false;
