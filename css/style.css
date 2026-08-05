@@ -142,6 +142,8 @@ main { padding: 20px 28px 60px; }
 .registry-table td.col-actions, .registry-table th.col-actions {
   text-align: right;
   overflow: hidden;
+  text-overflow: clip;
+  padding: 8px 8px;
 }
 
 .badge {
