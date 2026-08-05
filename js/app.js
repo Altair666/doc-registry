@@ -742,7 +742,12 @@ function updateTableTotalWidth() {
     restSum += parseFloat(ths[i].style.width) || 0;
   }
 
-  const available = scrollEl ? scrollEl.clientWidth : 0;
+  // Небольшой запас (не только математический — реальный браузер может
+  // округлить суммарную ширину в бо́льшую сторону на пару пикселей из-за
+  // border-collapse/дробных значений), иначе таблица иногда всё равно
+  // оказывается на волосок шире блока и появляется ненужный скролл.
+  const SAFETY_MARGIN = 4;
+  const available = scrollEl ? scrollEl.clientWidth - SAFETY_MARGIN : 0;
   const firstWidth = available > 0 ? Math.max(ownFirstWidth, available - restSum) : ownFirstWidth;
 
   firstTh.style.width = firstWidth + "px";
