@@ -125,6 +125,7 @@ function enterApp() {
   $("#btnAdd").disabled = false;
   $("#folderStatus").textContent = "Папка подключена: " + (dirHandle.name || "");
   $("#btnConnect").textContent = "Сменить папку";
+  recomputeMinColumnWidths();
   applyColumnWidths();
   renderStagesSelects();
   renderTable();
@@ -287,6 +288,7 @@ function renderTable() {
   });
 
   $("#emptyState").style.display = rows.length ? "none" : "block";
+  recomputeMinColumnWidths();
   updateTableTotalWidth();
 }
 
@@ -738,6 +740,8 @@ $$(".modal-overlay").forEach((ov) => {
     чтобы растяжение каждый раз считалось с нуля, а не накапливалось.
     Если сумма столбцов больше блока — ничего не подгоняет, просто
     появляется горизонтальный скролл (это нормально). */
+let resizingFirstColumnManually = false;
+
 function updateTableTotalWidth() {
   const table = $("#registryTable");
   const scrollEl = $(".table-scroll");
@@ -745,7 +749,6 @@ function updateTableTotalWidth() {
   if (!ths.length) return;
 
   const firstTh = ths[0];
-  const ownFirstWidth = parseFloat(firstTh.dataset.ownWidth) || parseFloat(firstTh.style.width) || 100;
 
   let restSum = 0;
   for (let i = 1; i < ths.length; i++) {
@@ -758,9 +761,19 @@ function updateTableTotalWidth() {
   // оказывается на волосок шире блока и появляется ненужный скролл.
   const SAFETY_MARGIN = 4;
   const available = scrollEl ? scrollEl.clientWidth - SAFETY_MARGIN : 0;
-  const firstWidth = available > 0 ? Math.max(ownFirstWidth, available - restSum) : ownFirstWidth;
 
-  firstTh.style.width = firstWidth + "px";
+  let firstWidth;
+  if (resizingFirstColumnManually) {
+    // Пользователь прямо сейчас тянет границу "Документа" вручную —
+    // не перебиваем его выбор автоматическим растяжением, иначе
+    // попытка СЖАТЬ этот столбец тут же откатывалась бы обратно.
+    firstWidth = parseFloat(firstTh.style.width) || 100;
+  } else {
+    const ownFirstWidth = parseFloat(firstTh.dataset.ownWidth) || parseFloat(firstTh.style.width) || 100;
+    firstWidth = available > 0 ? Math.max(ownFirstWidth, available - restSum) : ownFirstWidth;
+    firstTh.style.width = firstWidth + "px";
+  }
+
   table.style.width = firstWidth + restSum + "px";
 }
 window.addEventListener("resize", () => updateTableTotalWidth());
@@ -783,10 +796,12 @@ function applyColumnWidths() {
   updateTableTotalWidth();
 }
 
-/** Минимальная разумная ширина каждого столбца — чтобы заголовок и
-    содержимое (например кнопка "Продвинуть →") не сжимались до
-    нечитаемого/обрезанного состояния. */
-const MIN_COLUMN_WIDTHS = {
+/** Минимальная разумная ширина каждого столбца "по умолчанию" — пока
+    данные ещё не загружены/не измерены. Дальше минимумы пересчитываются
+    по-настоящему (см. recomputeMinColumnWidths) от реального самого
+    широкого текста — заголовка и содержимого всех строк — чтобы слова
+    не обрезались и уж тем более не наезжали на соседний столбец. */
+const FALLBACK_MIN_WIDTHS = {
   document: 120,
   type: 55,
   counterparty: 90,
@@ -795,8 +810,74 @@ const MIN_COLUMN_WIDTHS = {
   files: 65,
   actions: 100,
 };
+let measuredMinWidths = {};
+
 function minWidthFor(key) {
-  return MIN_COLUMN_WIDTHS[key] || 50;
+  return measuredMinWidths[key] || FALLBACK_MIN_WIDTHS[key] || 50;
+}
+
+let __measureCanvas = null;
+function measureTextWidth(text, font) {
+  const str = text == null ? "" : String(text);
+  try {
+    if (!__measureCanvas) __measureCanvas = document.createElement("canvas");
+    const ctx = __measureCanvas.getContext("2d");
+    if (ctx) {
+      ctx.font = font;
+      const w = ctx.measureText(str).width;
+      if (w > 0) return w;
+    }
+  } catch (e) {
+    /* падаем на грубую оценку ниже */
+  }
+  // Запасной вариант, если canvas 2D недоступен: грубая оценка по числу
+  // символов (с запасом, чтобы не оказаться уже, чем нужно).
+  return str.length * 7.5;
+}
+
+/** Пересчитывает реальные минимумы столбцов по самому широкому из
+    встречающихся значений (плюс заголовок) — вызывается при каждой
+    перерисовке таблицы, так что минимум всегда честно отражает то, что
+    реально показано в реестре сейчас, включая пользовательские виды
+    документов, названия контрагентов и стадий. */
+function recomputeMinColumnWidths() {
+  const headerFont = '700 12px -apple-system, "Segoe UI", Roboto, Arial, sans-serif';
+  const cellFont = '14px -apple-system, "Segoe UI", Roboto, Arial, sans-serif';
+  const CELL_PADDING = 28; // отступы ячейки (10px*2) + небольшой запас
+  const BADGE_PADDING = 40; // у бейджей (Стадия) свой скруглённый фон — нужно чуть больше
+
+  const columnGetters = {
+    document: (d) => buildDocLabel(d),
+    type: (d) => d.doc_type || "—",
+    counterparty: (d) => d.counterparty || "—",
+    amount: (d) => d.amount || "—",
+    stage: (d) => {
+      const s = getStage(d.stage_id);
+      return s ? s.name : "—";
+    },
+    files: (d) => String(d.files.length),
+  };
+  const headers = {
+    document: "Документ",
+    type: "Вид",
+    counterparty: "Контрагент",
+    amount: "Сумма",
+    stage: "Стадия",
+    files: "Файлы",
+  };
+
+  const next = {};
+  Object.keys(columnGetters).forEach((key) => {
+    const padding = key === "stage" ? BADGE_PADDING : CELL_PADDING;
+    let maxTextWidth = measureTextWidth(headers[key], headerFont);
+    state.documents.forEach((d) => {
+      const w = measureTextWidth(columnGetters[key](d), cellFont);
+      if (w > maxTextWidth) maxTextWidth = w;
+    });
+    next[key] = Math.max(FALLBACK_MIN_WIDTHS[key] || 50, Math.ceil(maxTextWidth) + padding);
+  });
+  next.actions = FALLBACK_MIN_WIDTHS.actions; // кнопка всегда одна и та же по тексту — фиксированный минимум
+  measuredMinWidths = next;
 }
 
 function makeColumnsResizable() {
@@ -818,6 +899,7 @@ function makeColumnsResizable() {
       const minTh = minWidthFor(th.dataset.widthKey);
       const minNext = minWidthFor(nextTh.dataset.widthKey);
       resizer.classList.add("active");
+      if (idx === 0) resizingFirstColumnManually = true;
 
       function onMove(ev) {
         // Пока соседу есть куда сжиматься — просто переливаем ширину между
@@ -840,7 +922,11 @@ function makeColumnsResizable() {
         resizer.classList.remove("active");
         document.removeEventListener("mousemove", onMove);
         document.removeEventListener("mouseup", onUp);
-        if (idx === 0) th.dataset.ownWidth = parseFloat(th.style.width);
+        if (idx === 0) {
+          th.dataset.ownWidth = parseFloat(th.style.width);
+          resizingFirstColumnManually = false;
+          updateTableTotalWidth();
+        }
         if (!config.columnWidths) config.columnWidths = {};
         config.columnWidths[th.dataset.widthKey] = parseFloat(th.style.width);
         config.columnWidths[nextTh.dataset.widthKey] = parseFloat(nextTh.style.width);
