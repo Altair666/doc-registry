@@ -340,8 +340,12 @@ function placeBadgeOnPage(idx, pageNum) {
     alert("Недостаточно свободных (не удалённых) страниц начиная с этой.");
     return;
   }
+  clearPendingOverlaysForGroup(idx); // убираем оверлей с прошлого места (если группу перетащили ещё раз)
   g.pendingPlacement = slice;
-  renderGroupPdfPages();
+  slice.forEach((p, i) => {
+    const pageEl = getPageEl(p);
+    if (pageEl) renderPendingOverlay(pageEl, idx, i === 0);
+  });
 }
 
 function confirmGroupPlacement(idx) {
@@ -350,25 +354,34 @@ function confirmGroupPlacement(idx) {
     alert("Сначала перетащите бейдж этой группы на нужную страницу справа.");
     return;
   }
-  g.pendingPlacement.forEach((p) => groupConsumedPages.add(p));
+  g.pendingPlacement.forEach((p) => {
+    groupConsumedPages.add(p);
+    removePageFromDom(p); // страница уходит из общего пула — остальные не трогаем
+  });
   g.assignedPages = g.pendingPlacement;
   g.confirmed = true;
   g.pendingPlacement = null;
   renderGroupCards();
-  renderGroupPdfPages();
   updateGroupSaveButtonState();
 }
 
-function resetGroupPlacement(idx) {
+async function resetGroupPlacement(idx) {
   const g = groups[idx];
   if (g.confirmed && g.assignedPages) {
-    g.assignedPages.forEach((p) => groupConsumedPages.delete(p));
+    const pagesToRestore = g.assignedPages;
+    pagesToRestore.forEach((p) => groupConsumedPages.delete(p));
+    // Вставляем строго по очереди (дожидаясь каждую) — параллельные async-
+    // вызовы делят один и тот же токен отмены рендера и гасили бы друг
+    // друга, из-за чего часть страниц не возвращалась в пул.
+    for (const p of pagesToRestore) {
+      await insertPageIntoDom(p);
+    }
   }
+  if (g.pendingPlacement) clearPendingOverlaysForGroup(idx);
   g.confirmed = false;
   g.assignedPages = null;
   g.pendingPlacement = null;
   renderGroupCards();
-  renderGroupPdfPages();
   updateGroupSaveButtonState();
 }
 
@@ -411,6 +424,133 @@ $("#groupFile").addEventListener("change", async () => {
 
 let groupPdfRenderToken = 0;
 
+/** Строит полностью готовый (с отрисованным канвасом и навешанными
+    обработчиками) DOM-элемент одной страницы. Не вставляет его никуда —
+    решение о позиции принимает вызывающий код. */
+async function buildPageElement(p) {
+  const st = getPageState(p);
+
+  const pageWrap = document.createElement("div");
+  pageWrap.className = "pdf-page" + (st.deleted ? " pdf-page-deleted" : "");
+  pageWrap.dataset.page = String(p);
+
+  const actions = document.createElement("div");
+  actions.className = "pdf-page-actions";
+  if (st.deleted) {
+    actions.innerHTML = `<button type="button" class="pdf-page-btn pdf-page-btn-restore" data-restore="${p}" title="Вернуть страницу">Вернуть</button>`;
+  } else {
+    actions.innerHTML =
+      `<button type="button" class="pdf-page-btn" data-rotate="${p}" title="Повернуть">⟳</button>` +
+      `<button type="button" class="pdf-page-btn pdf-page-btn-danger" data-delete="${p}" title="Удалить страницу">✕</button>`;
+  }
+  pageWrap.appendChild(actions);
+
+  const canvas = document.createElement("canvas");
+  pageWrap.appendChild(canvas);
+  const label = document.createElement("div");
+  label.className = "pdf-page-label";
+  label.textContent = "Стр. " + p + (st.deleted ? " (удалена)" : "");
+  pageWrap.appendChild(label);
+
+  const page = await groupPdfDoc.getPage(p);
+  const rotation = (page.rotate + st.rotation) % 360;
+  const baseViewport = page.getViewport({ scale: 1, rotation });
+  const scale = GROUP_PDF_RENDER_WIDTH / baseViewport.width;
+  const viewport = page.getViewport({ scale, rotation });
+  canvas.width = viewport.width;
+  canvas.height = viewport.height;
+  await page.render({ canvasContext: canvas.getContext("2d"), viewport }).promise;
+
+  const restoreBtn = actions.querySelector("[data-restore]");
+  if (restoreBtn) {
+    restoreBtn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      getPageState(p).deleted = false;
+      rerenderPageInPlace(p);
+    });
+  }
+  const rotateBtn = actions.querySelector("[data-rotate]");
+  if (rotateBtn) {
+    rotateBtn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      const s = getPageState(p);
+      s.rotation = (s.rotation + 90) % 360;
+      rerenderPageInPlace(p);
+    });
+  }
+  const deleteBtn = actions.querySelector("[data-delete]");
+  if (deleteBtn) {
+    deleteBtn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      getPageState(p).deleted = true;
+      if (showHiddenPages) {
+        rerenderPageInPlace(p);
+      } else {
+        removePageFromDom(p);
+      }
+    });
+  }
+
+  if (!st.deleted) wirePageDropzone(pageWrap, p);
+  return pageWrap;
+}
+
+function getPageEl(p) {
+  return $(`#groupPdfPages .pdf-page[data-page="${p}"]`);
+}
+
+function removePageFromDom(p) {
+  const el = getPageEl(p);
+  if (el) el.remove();
+}
+
+/** Пересоздаёт ОДНУ страницу на её текущем месте в DOM, не трогая
+    остальные — используется для поворота/удаления/восстановления,
+    чтобы список не мигал и не перематывался при каждом изменении. */
+async function rerenderPageInPlace(p) {
+  const myToken = ++groupPdfRenderToken;
+  const oldEl = getPageEl(p);
+  const newEl = await buildPageElement(p);
+  if (myToken !== groupPdfRenderToken) return; // подоспело более новое изменение — бросаем это
+  if (oldEl && oldEl.parentNode) {
+    oldEl.replaceWith(newEl);
+  } else {
+    insertPageElementSorted(newEl, p);
+  }
+}
+
+/** Вставляет уже готовый элемент страницы в правильное (отсортированное
+    по номеру) место среди уже отображённых страниц. */
+function insertPageElementSorted(el, p) {
+  const container = $("#groupPdfPages");
+  let insertBeforeEl = null;
+  for (let q = p + 1; q <= groupTotalPages; q++) {
+    const candidate = getPageEl(q);
+    if (candidate) {
+      insertBeforeEl = candidate;
+      break;
+    }
+  }
+  if (insertBeforeEl) container.insertBefore(el, insertBeforeEl);
+  else container.appendChild(el);
+}
+
+/** Строит и вставляет страницу, которой сейчас нет в DOM (например,
+    страница вернулась в общий пул после сброса размещения группы) —
+    без перерисовки остальных страниц. */
+async function insertPageIntoDom(p) {
+  const myToken = ++groupPdfRenderToken;
+  const el = await buildPageElement(p);
+  if (myToken !== groupPdfRenderToken) return;
+  insertPageElementSorted(el, p);
+}
+
+/** Полная перерисовка всего списка страниц — используется только при
+    первой загрузке PDF и при переключении "показать скрытые страницы"
+    (там меняется сразу много страниц). Для единичных изменений
+    (удаление/поворот/восстановление/размещение) используются точечные
+    функции выше — они не трогают остальные страницы и не сбрасывают
+    прокрутку списка. */
 async function renderGroupPdfPages() {
   const myToken = ++groupPdfRenderToken;
   const container = $("#groupPdfPages");
@@ -425,70 +565,12 @@ async function renderGroupPdfPages() {
   for (let p = 1; p <= groupTotalPages; p++) {
     if (myToken !== groupPdfRenderToken) return; // подоспел более новый вызов — этот бросаем
     if (groupConsumedPages.has(p)) continue;
-
     const st = getPageState(p);
     if (st.deleted && !showHiddenPages) continue;
 
-    const pageWrap = document.createElement("div");
-    pageWrap.className = "pdf-page" + (st.deleted ? " pdf-page-deleted" : "");
-    pageWrap.dataset.page = String(p);
-
-    const actions = document.createElement("div");
-    actions.className = "pdf-page-actions";
-    if (st.deleted) {
-      actions.innerHTML = `<button type="button" class="pdf-page-btn pdf-page-btn-restore" data-restore="${p}" title="Вернуть страницу">Вернуть</button>`;
-    } else {
-      actions.innerHTML =
-        `<button type="button" class="pdf-page-btn" data-rotate="${p}" title="Повернуть">⟳</button>` +
-        `<button type="button" class="pdf-page-btn pdf-page-btn-danger" data-delete="${p}" title="Удалить страницу">✕</button>`;
-    }
-    pageWrap.appendChild(actions);
-
-    const canvas = document.createElement("canvas");
-    pageWrap.appendChild(canvas);
-    const label = document.createElement("div");
-    label.className = "pdf-page-label";
-    label.textContent = "Стр. " + p + (st.deleted ? " (удалена)" : "");
-    pageWrap.appendChild(label);
-    container.appendChild(pageWrap);
-
-    const page = await groupPdfDoc.getPage(p);
+    const el = await buildPageElement(p);
     if (myToken !== groupPdfRenderToken) return;
-    const baseViewport = page.getViewport({ scale: 1, rotation: (page.rotate + st.rotation) % 360 });
-    const scale = GROUP_PDF_RENDER_WIDTH / baseViewport.width;
-    const viewport = page.getViewport({ scale, rotation: (page.rotate + st.rotation) % 360 });
-    canvas.width = viewport.width;
-    canvas.height = viewport.height;
-    await page.render({ canvasContext: canvas.getContext("2d"), viewport }).promise;
-    if (myToken !== groupPdfRenderToken) return;
-
-    const restoreBtn = actions.querySelector("[data-restore]");
-    if (restoreBtn) {
-      restoreBtn.addEventListener("click", (e) => {
-        e.stopPropagation();
-        getPageState(p).deleted = false;
-        renderGroupPdfPages();
-      });
-    }
-    const rotateBtn = actions.querySelector("[data-rotate]");
-    if (rotateBtn) {
-      rotateBtn.addEventListener("click", (e) => {
-        e.stopPropagation();
-        const s = getPageState(p);
-        s.rotation = (s.rotation + 90) % 360;
-        renderGroupPdfPages();
-      });
-    }
-    const deleteBtn = actions.querySelector("[data-delete]");
-    if (deleteBtn) {
-      deleteBtn.addEventListener("click", (e) => {
-        e.stopPropagation();
-        getPageState(p).deleted = true;
-        renderGroupPdfPages();
-      });
-    }
-
-    if (!st.deleted) wirePageDropzone(pageWrap, p);
+    container.appendChild(el);
   }
 
   if (myToken !== groupPdfRenderToken) return;
@@ -496,7 +578,7 @@ async function renderGroupPdfPages() {
   groups.forEach((g, idx) => {
     if (!g.pendingPlacement) return;
     g.pendingPlacement.forEach((p, i) => {
-      const pageEl = container.querySelector(`.pdf-page[data-page="${p}"]`);
+      const pageEl = getPageEl(p);
       if (pageEl) renderPendingOverlay(pageEl, idx, i === 0);
     });
   });
@@ -519,10 +601,18 @@ function wirePageDropzone(pageEl, pageNum) {
   });
 }
 
+/** Убирает уже показанный оверлей размещения для конкретной группы (если
+    она перетаскивалась ранее на другие страницы) — без перерисовки всего
+    списка. */
+function clearPendingOverlaysForGroup(idx) {
+  $$(`#groupPdfPages .pdf-page-overlay[data-group-idx="${idx}"]`).forEach((el) => el.remove());
+}
+
 function renderPendingOverlay(pageEl, idx, showControls) {
   const g = groups[idx];
   const overlay = document.createElement("div");
   overlay.className = "pdf-page-overlay";
+  overlay.dataset.groupIdx = String(idx);
   overlay.innerHTML =
     `<span class="group-badge-mini" style="background:${g.color}">${escapeHtml(g.doc_type ? buildDocLabel(g) : String(idx + 1))}</span>` +
     (showControls
@@ -539,7 +629,7 @@ function renderPendingOverlay(pageEl, idx, showControls) {
     cancelBtn.addEventListener("click", (e) => {
       e.stopPropagation();
       groups[idx].pendingPlacement = null;
-      renderGroupPdfPages();
+      clearPendingOverlaysForGroup(idx);
     });
 }
 
