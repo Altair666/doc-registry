@@ -138,13 +138,19 @@
       <div class="group-workspace">
         <div id="groupCardsList" class="group-cards-list"></div>
         <div class="group-pdf-panel">
-          <div class="pdf-zoom-control">
-            <span class="muted">Масштаб</span>
-            <input type="range" id="groupZoom" min="35" max="100" value="100" step="5">
-            <span id="groupZoomValue" class="muted">100%</span>
+          <div class="pdf-view-control">
+            <div class="pdf-view-toggle" id="pdfViewToggle">
+              <button type="button" class="pdf-view-btn" data-view="list">Список страниц</button>
+              <button type="button" class="pdf-view-btn active" data-view="max">Крупно</button>
+            </div>
+            <span class="pdf-zoom-slider-wrap" id="pdfZoomSliderWrap" style="display:none">
+              <span class="muted">Масштаб</span>
+              <input type="range" id="groupZoom" min="20" max="90" value="45" step="5">
+              <span id="groupZoomValue" class="muted">45%</span>
+            </span>
           </div>
           <p class="muted" id="groupPdfHint">Прикрепите PDF справа сверху, чтобы разместить страницы по группам.</p>
-          <div id="groupPdfPages" class="group-pdf-pages"></div>
+          <div id="groupPdfPages" class="group-pdf-pages pdf-view-max"></div>
         </div>
       </div>
     </div>
