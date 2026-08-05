@@ -51,12 +51,12 @@ main { padding: 20px 28px 60px; }
 .btn:disabled { opacity: 0.5; cursor: not-allowed; }
 
 .registry-table, .files-table {
-  width: 100%;
   border-collapse: collapse;
   background: var(--panel);
   border-radius: var(--radius);
   overflow: hidden;
 }
+.files-table { width: 100%; }
 .table-scroll { overflow-x: auto; border-radius: var(--radius); }
 .registry-table { table-layout: fixed; }
 .registry-table th, .registry-table td,
