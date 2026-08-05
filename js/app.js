@@ -128,6 +128,16 @@ function enterApp() {
   applyColumnWidths();
   renderStagesSelects();
   renderTable();
+
+  // Небольшая подстраховка: пересчитываем ширину ещё раз чуть позже —
+  // на случай если при первом расчёте разметка ещё не устоялась.
+  setTimeout(() => {
+    try {
+      updateTableTotalWidth();
+    } catch (e) {
+      /* не критично — таблица просто останется на текущей ширине */
+    }
+  }, 200);
 }
 
 $("#btnConnect").addEventListener("click", async () => {
