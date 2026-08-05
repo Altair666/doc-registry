@@ -1,0 +1,491 @@
+/* ==========================================================================
+   Групповой режим добавления документов.
+   Позволяет загрузить один PDF со сканами нескольких документов и
+   расставить "бейджи" групп по страницам — при подтверждении каждая
+   группа получает свой диапазон страниц. При добавлении PDF нарезается
+   на отдельные файлы (как в одиночном режиме) и создаётся документ на
+   группу.
+   ========================================================================== */
+
+let groupVendorLoaded = false;
+let groups = []; // { color, doc_type, number, doc_date, counterparty, amount, comment, pagesCount, pendingPlacement, confirmed, startPage }
+let groupPdfDoc = null; // pdfjsLib document proxy (для рендера превью)
+let groupPdfBytesForSplit = null; // ArrayBuffer — отдельная копия для pdf-lib
+let groupTotalPages = 0;
+let groupConsumedPages = new Set(); // номера страниц (1-based), уже подтверждённые за какой-то группой
+
+/* -------------------------------------------------------------------------
+   Ленивая подгрузка pdf.js / pdf-lib — только когда реально понадобились
+   ------------------------------------------------------------------------- */
+
+function loadScriptOnce(src) {
+  return new Promise((resolve, reject) => {
+    if (document.querySelector(`script[src="${src}"]`)) return resolve();
+    const s = document.createElement("script");
+    s.src = src;
+    s.onload = () => resolve();
+    s.onerror = () => reject(new Error("Не удалось загрузить " + src));
+    document.head.appendChild(s);
+  });
+}
+
+async function ensureGroupVendorLoaded() {
+  if (groupVendorLoaded) return;
+  $("#groupLoadingHint").style.display = "block";
+  try {
+    await loadScriptOnce("js/vendor/pdf-lib.min.js");
+    await loadScriptOnce("js/vendor/pdf.min.js");
+    window.pdfjsLib.GlobalWorkerOptions.workerSrc = "js/vendor/pdf.worker.min.js";
+    groupVendorLoaded = true;
+  } finally {
+    $("#groupLoadingHint").style.display = "none";
+  }
+}
+
+/* -------------------------------------------------------------------------
+   Переключатель "Один документ" / "Группа документов"
+   ------------------------------------------------------------------------- */
+
+$$("#modeToggle .mode-toggle-btn").forEach((btn) => {
+  btn.addEventListener("click", async () => {
+    $$("#modeToggle .mode-toggle-btn").forEach((b) => b.classList.remove("active"));
+    btn.classList.add("active");
+    const mode = btn.dataset.mode;
+    $("#modalDocInner").classList.toggle("modal-doc-group", mode === "group");
+    if (mode === "group") {
+      await ensureGroupVendorLoaded();
+    }
+  });
+});
+
+/** Сбрасывает групповой режим к пустому состоянию — вызывается при
+    каждом открытии окна «Новый документ» (см. app.js, btnAdd). */
+function resetGroupModeUI() {
+  $$("#modeToggle .mode-toggle-btn").forEach((b) => b.classList.toggle("active", b.dataset.mode === "single"));
+  $("#modalDocInner").classList.remove("modal-doc-group");
+
+  groups = [];
+  groupPdfDoc = null;
+  groupPdfBytesForSplit = null;
+  groupTotalPages = 0;
+  groupConsumedPages = new Set();
+
+  $("#groupFile").value = "";
+  $("#groupFileName").textContent = "Файл не выбран";
+  $("#groupPdfHint").style.display = "block";
+  $("#groupPdfPages").innerHTML = "";
+  $("#groupCountInput").value = 1;
+
+  setGroupCount(1);
+}
+
+/* -------------------------------------------------------------------------
+   Группы: создание, изменение количества, цвет
+   ------------------------------------------------------------------------- */
+
+function randomGroupColor(idx) {
+  const hue = (idx * 137.508) % 360; // золотой угол — визуально разные, но воспроизводимые цвета
+  return `hsl(${Math.round(hue)}, 68%, 48%)`;
+}
+
+function makeEmptyGroup(idx) {
+  return {
+    color: randomGroupColor(idx),
+    doc_type: "",
+    number: "",
+    doc_date: todayIso(),
+    counterparty: "",
+    amount: "",
+    comment: "",
+    pagesCount: 1,
+    pendingPlacement: null,
+    confirmed: false,
+    startPage: null,
+  };
+}
+
+function isGroupDataFilled(g) {
+  return !!g.doc_type && !!(g.number && g.number.trim());
+}
+
+function setGroupCount(n) {
+  n = Math.max(1, Math.min(60, Math.round(n) || 1));
+  if (n < groups.length) {
+    for (let i = n; i < groups.length; i++) {
+      const g = groups[i];
+      if (g.confirmed && g.startPage != null) {
+        for (let p = g.startPage; p < g.startPage + g.pagesCount; p++) groupConsumedPages.delete(p);
+      }
+    }
+    groups = groups.slice(0, n);
+  } else {
+    while (groups.length < n) groups.push(makeEmptyGroup(groups.length));
+  }
+  $("#groupCountInput").value = n;
+  renderGroupCards();
+  renderGroupPdfPages();
+  updateGroupSaveButtonState();
+}
+
+$("#groupCountMinus").addEventListener("click", () => setGroupCount(Number($("#groupCountInput").value) - 1));
+$("#groupCountPlus").addEventListener("click", () => setGroupCount(Number($("#groupCountInput").value) + 1));
+$("#groupCountInput").addEventListener("change", () => setGroupCount(Number($("#groupCountInput").value)));
+
+/* -------------------------------------------------------------------------
+   Рендер карточек групп (левая колонка)
+   ------------------------------------------------------------------------- */
+
+function renderGroupCards() {
+  const list = $("#groupCardsList");
+  list.innerHTML = groups
+    .map((g, idx) => {
+      const typeOptions =
+        `<option value="" ${g.doc_type ? "" : "selected"}>— выбрать —</option>` +
+        config.docTypes.map((t) => `<option value="${escapeHtml(t)}" ${t === g.doc_type ? "selected" : ""}>${escapeHtml(t)}</option>`).join("");
+      const cpOptions =
+        `<option value="" ${g.counterparty ? "" : "selected"}>—</option>` +
+        config.counterparties.map((c) => `<option value="${escapeHtml(c)}" ${c === g.counterparty ? "selected" : ""}>${escapeHtml(c)}</option>`).join("");
+      return `
+      <div class="group-card" data-group="${idx}">
+        <div class="group-card-header">
+          <span class="group-badge${isGroupDataFilled(g) ? " filled" : ""}${g.confirmed ? " confirmed" : ""}"
+                data-badge="${idx}" draggable="true" style="background:${g.color}" title="Перетащите на страницу справа">${idx + 1}</span>
+          <label class="group-pages-label muted" style="font-size:11px">Стр.
+            <span class="stepper stepper-small">
+              <button type="button" data-pages-minus="${idx}">−</button>
+              <input type="number" min="1" max="99" value="${g.pagesCount}" data-pages-input="${idx}">
+              <button type="button" data-pages-plus="${idx}">+</button>
+            </span>
+          </label>
+          <button type="button" class="icon-btn" data-reset="${idx}" title="Сбросить размещение">↺</button>
+          <button type="button" class="icon-btn icon-btn-confirm" data-confirm="${idx}" title="Подтвердить размещение">✓</button>
+        </div>
+        <div class="form-grid">
+          <label>Дата <input type="date" data-field="doc_date" data-idx="${idx}" value="${g.doc_date || ""}"></label>
+          <label>Вид документа
+            <span class="group-field-with-add">
+              <select data-field="doc_type" data-idx="${idx}">${typeOptions}</select>
+              <button type="button" class="icon-btn" data-add-type="${idx}" title="Добавить новый вид">+</button>
+            </span>
+          </label>
+          <label>Номер документа <input type="text" data-field="number" data-idx="${idx}" value="${escapeHtml(g.number)}"></label>
+          <label>Контрагент
+            <span class="group-field-with-add">
+              <select data-field="counterparty" data-idx="${idx}">${cpOptions}</select>
+              <button type="button" class="icon-btn" data-add-cp="${idx}" title="Добавить нового контрагента">+</button>
+            </span>
+          </label>
+          <label>Сумма <input type="text" data-field="amount" data-idx="${idx}" value="${escapeHtml(g.amount)}"></label>
+          <label class="full">Комментарий <textarea rows="1" data-field="comment" data-idx="${idx}">${escapeHtml(g.comment)}</textarea></label>
+        </div>
+      </div>`;
+    })
+    .join("");
+
+  wireGroupCardEvents();
+}
+
+function wireGroupCardEvents() {
+  const list = $("#groupCardsList");
+
+  list.querySelectorAll("[data-field]").forEach((el) => {
+    const evt = el.tagName === "SELECT" || el.type === "date" ? "change" : "input";
+    el.addEventListener(evt, () => {
+      const idx = Number(el.dataset.idx);
+      groups[idx][el.dataset.field] = el.value;
+      updateGroupBadgeVisual(idx);
+      updateGroupSaveButtonState();
+    });
+  });
+
+  list.querySelectorAll("[data-add-type]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const idx = Number(btn.dataset.addType);
+      const name = window.prompt("Новый вид документа:");
+      if (!name || !name.trim()) return;
+      addDocType(name);
+      saveConfig();
+      groups[idx].doc_type = name.trim();
+      renderGroupCards();
+      updateGroupSaveButtonState();
+    });
+  });
+  list.querySelectorAll("[data-add-cp]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const idx = Number(btn.dataset.addCp);
+      const name = window.prompt("Новый контрагент:");
+      if (!name || !name.trim()) return;
+      const saved = addCounterparty(name);
+      saveConfig();
+      groups[idx].counterparty = saved;
+      renderGroupCards();
+    });
+  });
+
+  list.querySelectorAll("[data-pages-minus]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const idx = Number(btn.dataset.pagesMinus);
+      groups[idx].pagesCount = Math.max(1, groups[idx].pagesCount - 1);
+      list.querySelector(`[data-pages-input="${idx}"]`).value = groups[idx].pagesCount;
+    });
+  });
+  list.querySelectorAll("[data-pages-plus]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const idx = Number(btn.dataset.pagesPlus);
+      groups[idx].pagesCount = Math.min(99, groups[idx].pagesCount + 1);
+      list.querySelector(`[data-pages-input="${idx}"]`).value = groups[idx].pagesCount;
+    });
+  });
+  list.querySelectorAll("[data-pages-input]").forEach((inp) => {
+    inp.addEventListener("change", () => {
+      const idx = Number(inp.dataset.pagesInput);
+      groups[idx].pagesCount = Math.max(1, Math.min(99, Number(inp.value) || 1));
+      inp.value = groups[idx].pagesCount;
+    });
+  });
+
+  list.querySelectorAll("[data-reset]").forEach((btn) => {
+    btn.addEventListener("click", () => resetGroupPlacement(Number(btn.dataset.reset)));
+  });
+  list.querySelectorAll("[data-confirm]").forEach((btn) => {
+    btn.addEventListener("click", () => confirmGroupPlacement(Number(btn.dataset.confirm)));
+  });
+
+  list.querySelectorAll(".group-badge").forEach((badge) => {
+    badge.addEventListener("dragstart", (e) => {
+      e.dataTransfer.setData("text/plain", badge.dataset.badge);
+      e.dataTransfer.effectAllowed = "move";
+    });
+  });
+}
+
+function updateGroupBadgeVisual(idx) {
+  const badge = $(`.group-badge[data-badge="${idx}"]`);
+  if (!badge) return;
+  badge.classList.toggle("filled", isGroupDataFilled(groups[idx]));
+  badge.classList.toggle("confirmed", !!groups[idx].confirmed);
+}
+
+/* -------------------------------------------------------------------------
+   Размещение и подтверждение бейджей на страницах PDF
+   ------------------------------------------------------------------------- */
+
+function placeBadgeOnPage(idx, pageNum) {
+  const g = groups[idx];
+  const count = g.pagesCount;
+  for (let p = pageNum; p < pageNum + count; p++) {
+    if (p > groupTotalPages || groupConsumedPages.has(p)) {
+      alert("Недостаточно свободных страниц подряд начиная с этой, либо часть уже занята другой группой.");
+      return;
+    }
+  }
+  g.pendingPlacement = pageNum;
+  renderGroupPdfPages();
+}
+
+function confirmGroupPlacement(idx) {
+  const g = groups[idx];
+  if (g.pendingPlacement == null) {
+    alert("Сначала перетащите бейдж этой группы на нужную страницу справа.");
+    return;
+  }
+  const start = g.pendingPlacement;
+  for (let p = start; p < start + g.pagesCount; p++) groupConsumedPages.add(p);
+  g.startPage = start;
+  g.confirmed = true;
+  g.pendingPlacement = null;
+  renderGroupCards();
+  renderGroupPdfPages();
+  updateGroupSaveButtonState();
+}
+
+function resetGroupPlacement(idx) {
+  const g = groups[idx];
+  if (g.confirmed && g.startPage != null) {
+    for (let p = g.startPage; p < g.startPage + g.pagesCount; p++) groupConsumedPages.delete(p);
+  }
+  g.confirmed = false;
+  g.startPage = null;
+  g.pendingPlacement = null;
+  renderGroupCards();
+  renderGroupPdfPages();
+  updateGroupSaveButtonState();
+}
+
+/* -------------------------------------------------------------------------
+   PDF: загрузка, рендер превью страниц, drag&drop
+   ------------------------------------------------------------------------- */
+
+$("#groupFile").addEventListener("change", async () => {
+  const file = $("#groupFile").files[0];
+  if (!file) return;
+  $("#groupFileName").textContent = file.name;
+  await ensureGroupVendorLoaded();
+
+  const buf = await file.arrayBuffer();
+  groupPdfBytesForSplit = buf.slice(0); // отдельная копия — для нарезки через pdf-lib
+  const renderBytes = new Uint8Array(buf.slice(0));
+
+  groupConsumedPages = new Set();
+  groups.forEach((g) => {
+    g.confirmed = false;
+    g.startPage = null;
+    g.pendingPlacement = null;
+  });
+
+  const loadingTask = window.pdfjsLib.getDocument({ data: renderBytes });
+  groupPdfDoc = await loadingTask.promise;
+  groupTotalPages = groupPdfDoc.numPages;
+
+  $("#groupPdfHint").style.display = "none";
+  await renderGroupPdfPages();
+  renderGroupCards();
+  updateGroupSaveButtonState();
+});
+
+let groupPdfRenderToken = 0;
+
+async function renderGroupPdfPages() {
+  const myToken = ++groupPdfRenderToken;
+  const container = $("#groupPdfPages");
+  if (!groupPdfDoc) {
+    container.innerHTML = "";
+    return;
+  }
+  container.innerHTML = "";
+
+  for (let p = 1; p <= groupTotalPages; p++) {
+    if (myToken !== groupPdfRenderToken) return; // подоспел более новый вызов — этот бросаем
+    if (groupConsumedPages.has(p)) continue;
+
+    const pageWrap = document.createElement("div");
+    pageWrap.className = "pdf-page";
+    pageWrap.dataset.page = String(p);
+
+    const canvas = document.createElement("canvas");
+    pageWrap.appendChild(canvas);
+    const label = document.createElement("div");
+    label.className = "pdf-page-label";
+    label.textContent = "Стр. " + p;
+    pageWrap.appendChild(label);
+    container.appendChild(pageWrap);
+
+    const page = await groupPdfDoc.getPage(p);
+    if (myToken !== groupPdfRenderToken) return;
+    const baseViewport = page.getViewport({ scale: 1 });
+    const scale = 150 / baseViewport.width;
+    const viewport = page.getViewport({ scale });
+    canvas.width = viewport.width;
+    canvas.height = viewport.height;
+    await page.render({ canvasContext: canvas.getContext("2d"), viewport }).promise;
+    if (myToken !== groupPdfRenderToken) return;
+
+    wirePageDropzone(pageWrap, p);
+  }
+
+  if (myToken !== groupPdfRenderToken) return;
+
+  groups.forEach((g, idx) => {
+    if (g.pendingPlacement == null) return;
+    for (let offset = 0; offset < g.pagesCount; offset++) {
+      const pageEl = container.querySelector(`.pdf-page[data-page="${g.pendingPlacement + offset}"]`);
+      if (pageEl) renderPendingOverlay(pageEl, idx, offset === 0);
+    }
+  });
+}
+
+function wirePageDropzone(pageEl, pageNum) {
+  pageEl.addEventListener("dragover", (e) => {
+    e.preventDefault();
+    pageEl.classList.add("dropzone-active");
+  });
+  pageEl.addEventListener("dragleave", () => pageEl.classList.remove("dropzone-active"));
+  pageEl.addEventListener("drop", (e) => {
+    e.preventDefault();
+    pageEl.classList.remove("dropzone-active");
+    const idx = Number(e.dataTransfer.getData("text/plain"));
+    if (Number.isNaN(idx)) return;
+    placeBadgeOnPage(idx, pageNum);
+  });
+}
+
+function renderPendingOverlay(pageEl, idx, showControls) {
+  const g = groups[idx];
+  const overlay = document.createElement("div");
+  overlay.className = "pdf-page-overlay";
+  overlay.innerHTML =
+    `<span class="group-badge-mini" style="background:${g.color}">${idx + 1}</span>` +
+    (showControls
+      ? `<span>
+           <button type="button" class="mini-btn mini-confirm" data-mini-confirm="${idx}" title="Подтвердить">✓</button>
+           <button type="button" class="mini-btn mini-cancel" data-mini-cancel="${idx}" title="Отменить">✗</button>
+         </span>`
+      : "");
+  pageEl.appendChild(overlay);
+  const confirmBtn = overlay.querySelector("[data-mini-confirm]");
+  const cancelBtn = overlay.querySelector("[data-mini-cancel]");
+  if (confirmBtn) confirmBtn.addEventListener("click", (e) => { e.stopPropagation(); confirmGroupPlacement(idx); });
+  if (cancelBtn)
+    cancelBtn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      groups[idx].pendingPlacement = null;
+      renderGroupPdfPages();
+    });
+}
+
+/* -------------------------------------------------------------------------
+   Кнопка «Добавить документы»
+   ------------------------------------------------------------------------- */
+
+function updateGroupSaveButtonState() {
+  const ready = groups.some((g) => g.confirmed && isGroupDataFilled(g));
+  $("#btnGroupSave").disabled = !ready;
+}
+
+$("#btnGroupCancel").addEventListener("click", () => $("#modalDoc").classList.remove("open"));
+
+$("#btnGroupSave").addEventListener("click", async () => {
+  const ready = groups.filter((g) => g.confirmed && isGroupDataFilled(g));
+  const skipped = groups.length - ready.length;
+  if (!ready.length) return;
+  if (skipped > 0 && !confirm(`${ready.length} групп готово к добавлению, ${skipped} будет пропущено (не заполнены поля или не подтверждено размещение). Продолжить?`)) {
+    return;
+  }
+
+  const PDFLib = window.PDFLib;
+  const srcPdf = await PDFLib.PDFDocument.load(groupPdfBytesForSplit);
+  const firstStage = orderedStages()[0];
+
+  for (const g of ready) {
+    const ts = nowIso();
+    const doc = {
+      id: state.nextDocId++,
+      doc_type: g.doc_type,
+      number: g.number,
+      doc_date: g.doc_date,
+      counterparty: g.counterparty,
+      amount: g.amount,
+      comment: g.comment,
+      stage_id: firstStage.id,
+      created_at: ts,
+      updated_at: ts,
+      files: [],
+    };
+    state.documents.push(doc);
+
+    const outPdf = await PDFLib.PDFDocument.create();
+    const pageIndices = [];
+    for (let p = g.startPage; p < g.startPage + g.pagesCount; p++) pageIndices.push(p - 1);
+    const copiedPages = await outPdf.copyPages(srcPdf, pageIndices);
+    copiedPages.forEach((pg) => outPdf.addPage(pg));
+    const outBytes = await outPdf.save();
+    const outFile = new File([outBytes], "scan.pdf", { type: "application/pdf" });
+
+    await attachFileToDoc(doc, outFile, doc.stage_id);
+  }
+
+  await saveState();
+  await saveConfig();
+  $("#modalDoc").classList.remove("open");
+  renderTable();
+});
