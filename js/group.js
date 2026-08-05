@@ -62,6 +62,8 @@ $$("#modeToggle .mode-toggle-btn").forEach((btn) => {
     btn.classList.add("active");
     const mode = btn.dataset.mode;
     $("#modalDocInner").classList.toggle("modal-doc-group", mode === "group");
+    $("#groupTopbarExtra").style.display = mode === "group" ? "flex" : "none";
+    $("#modalDocTitle").textContent = mode === "group" ? "Новый документ — группа" : "Новый документ";
     if (mode === "group") {
       await ensureGroupVendorLoaded();
     }
@@ -73,6 +75,8 @@ $$("#modeToggle .mode-toggle-btn").forEach((btn) => {
 function resetGroupModeUI() {
   $$("#modeToggle .mode-toggle-btn").forEach((b) => b.classList.toggle("active", b.dataset.mode === "single"));
   $("#modalDocInner").classList.remove("modal-doc-group");
+  $("#groupTopbarExtra").style.display = "none";
+  $("#modalDocTitle").textContent = "Новый документ";
 
   groups = [];
   groupPdfDoc = null;
