@@ -136,14 +136,14 @@ main { padding: 20px 28px 60px; }
 .registry-table td { user-select: text; }
 .row-open {
   white-space: nowrap;
-  padding: 5px 8px;
-  font-size: 12px;
+  padding: 5px 7px;
+  font-size: 11.5px;
 }
 .registry-table td.col-actions, .registry-table th.col-actions {
   text-align: right;
   overflow: hidden;
   text-overflow: clip;
-  padding: 8px 8px;
+  padding: 8px 6px;
 }
 
 .badge {
