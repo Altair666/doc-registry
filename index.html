@@ -116,9 +116,11 @@
         <h2 class="group-title">Новый документ — группа</h2>
         <label class="group-count-label">Кол-во групп
           <span class="stepper">
-            <button type="button" id="groupCountMinus" class="btn btn-secondary btn-small">−</button>
             <input type="number" id="groupCountInput" min="1" max="60" value="1">
-            <button type="button" id="groupCountPlus" class="btn btn-secondary btn-small">+</button>
+            <span class="stepper-arrows">
+              <button type="button" id="groupCountPlus" class="stepper-arrow stepper-arrow-up" title="Больше">▲</button>
+              <button type="button" id="groupCountMinus" class="stepper-arrow stepper-arrow-down" title="Меньше">▼</button>
+            </span>
           </span>
         </label>
         <label class="file-picker" style="margin-left:auto">
