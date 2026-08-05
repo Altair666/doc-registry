@@ -324,7 +324,7 @@ label:has(.file-input-hidden) { cursor: pointer; }
 .stepper-small .stepper-arrow { font-size: 6px; }
 
 .group-workspace { display: flex; gap: 16px; flex: 1; min-height: 0; margin-top: 14px; }
-.group-cards-list { flex: 0 0 44%; min-width: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; padding-right: 6px; }
+.group-cards-list { flex: 0 0 35%; min-width: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; padding-right: 6px; }
 .group-pdf-panel { flex: 1; min-width: 0; overflow-y: auto; border: 1px solid var(--border); border-radius: 10px; padding: 12px; background: #fafbfc; }
 
 .group-card { border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px; background: var(--panel); }
@@ -401,14 +401,24 @@ label:has(.file-input-hidden) { cursor: pointer; }
 .icon-btn-confirm { color: #16a34a; border-color: #bbf0cd; }
 .icon-btn-confirm:hover { background: #eafcf1; }
 
-.pdf-zoom-control { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; font-size: 12px; }
-.pdf-zoom-control input[type="range"] { flex: 1; max-width: 220px; }
-.pdf-zoom-control #groupZoomValue { width: 36px; text-align: right; }
+.pdf-view-control { display: flex; align-items: center; gap: 14px; margin-bottom: 10px; font-size: 12px; flex-wrap: wrap; }
+.pdf-view-toggle { display: flex; gap: 4px; background: #eef0f3; border-radius: 999px; padding: 3px; width: fit-content; }
+.pdf-view-btn { border: none; background: transparent; padding: 5px 12px; border-radius: 999px; font-size: 12px; font-weight: 600; color: var(--muted); cursor: pointer; }
+.pdf-view-btn.active { background: var(--panel); color: var(--text); box-shadow: 0 1px 3px rgba(0,0,0,0.12); }
+.pdf-zoom-slider-wrap { display: flex; align-items: center; gap: 8px; }
+.pdf-zoom-slider-wrap input[type="range"] { flex: 1; max-width: 180px; }
+.pdf-zoom-slider-wrap #groupZoomValue { width: 36px; text-align: right; }
 
-.group-pdf-pages { display: flex; flex-direction: column; align-items: center; gap: 16px; }
+.group-pdf-pages { display: flex; gap: 16px; }
+/* Крупно — по одной странице на всю ширину блока, листается вниз */
+.group-pdf-pages.pdf-view-max { flex-direction: column; align-items: center; }
+.group-pdf-pages.pdf-view-max .pdf-page { width: 100%; }
+/* Список — можно масштабировать, несколько страниц в ряд */
+.group-pdf-pages.pdf-view-list { flex-wrap: wrap; align-items: flex-start; }
+.group-pdf-pages.pdf-view-list .pdf-page { width: var(--pdf-page-scale, 45%); }
+
 .pdf-page {
   position: relative;
-  width: var(--pdf-page-scale, 100%);
   max-width: 100%;
   border: 1px solid var(--border);
   border-radius: 8px;
