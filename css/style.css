@@ -296,40 +296,87 @@ label:has(.file-input-hidden) { cursor: pointer; }
 .group-title { margin: 0; font-size: 18px; margin-right: 8px; }
 .group-count-label { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--muted); font-weight: 600; }
 
-.stepper { display: inline-flex; align-items: center; gap: 0; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
-.stepper button { border: none; background: #f2f3f5; width: 28px; height: 28px; font-size: 15px; cursor: pointer; color: var(--text); }
-.stepper button:hover { background: #e4e6eb; }
-.stepper input { width: 46px; text-align: center; border: none; border-left: 1px solid var(--border); border-right: 1px solid var(--border); height: 28px; font-size: 13px; -moz-appearance: textfield; }
+/* Степпер: поле числа + стрелочки вверх/вниз стопкой с одной стороны */
+.stepper { display: inline-flex; align-items: stretch; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; height: 28px; }
+.stepper input { width: 44px; text-align: center; border: none; height: 100%; font-size: 13px; -moz-appearance: textfield; padding: 0; }
 .stepper input::-webkit-outer-spin-button, .stepper input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
-.stepper-small button, .stepper-small input { width: 22px; height: 22px; font-size: 12px; }
-.stepper-small input { width: 34px; }
+.stepper-arrows { display: flex; flex-direction: column; border-left: 1px solid var(--border); width: 20px; }
+.stepper-arrow {
+  flex: 1 1 50%;
+  border: none;
+  background: #f2f3f5;
+  cursor: pointer;
+  color: var(--text);
+  font-size: 7px;
+  line-height: 1;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.stepper-arrow-up { border-bottom: 1px solid var(--border); }
+.stepper-arrow:hover { background: #e4e6eb; }
+.stepper-small { height: 22px; }
+.stepper-small input { width: 30px; font-size: 11px; }
+.stepper-small .stepper-arrows { width: 16px; }
+.stepper-small .stepper-arrow { font-size: 6px; }
 
 .group-workspace { display: flex; gap: 16px; flex: 1; min-height: 0; margin-top: 14px; }
 .group-cards-list { flex: 0 0 44%; min-width: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; padding-right: 6px; }
 .group-pdf-panel { flex: 1; min-width: 0; overflow-y: auto; border: 1px solid var(--border); border-radius: 10px; padding: 12px; background: #fafbfc; }
 
 .group-card { border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px; background: var(--panel); }
-.group-card-header { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; flex-wrap: wrap; }
-.group-card .form-grid { grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 0; }
+.group-card-header { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; flex-wrap: wrap; }
+.group-pages-label { display: flex; align-items: center; gap: 6px; font-size: 11px; }
+.group-card-actions { display: flex; gap: 4px; margin-left: auto; }
+
+/* Компактная сетка полей группы:
+   строка 1 — вид (мельче) | дата (мельче) | номер
+   строка 2 — контрагент (шире) | сумма
+   строка 3 — комментарий на всю ширину */
+.group-fields-grid {
+  display: grid;
+  grid-template-columns: 1fr 0.8fr 1.2fr;
+  grid-template-areas:
+    "type date number"
+    "cp cp amount"
+    "comment comment comment";
+  gap: 6px 8px;
+  margin-top: 0;
+}
+.group-fields-grid .f-type { grid-area: type; }
+.group-fields-grid .f-date { grid-area: date; }
+.group-fields-grid .f-number { grid-area: number; }
+.group-fields-grid .f-cp { grid-area: cp; }
+.group-fields-grid .f-amount { grid-area: amount; }
+.group-fields-grid .f-comment { grid-area: comment; }
+
 .group-card .form-grid label { font-size: 11px; }
+.group-card .form-grid label.compact { font-size: 9px; }
 .group-card .form-grid input, .group-card .form-grid select, .group-card .form-grid textarea { padding: 6px 8px; font-size: 13px; }
+.group-card .form-grid label.compact input, .group-card .form-grid label.compact select { padding: 4px 6px; font-size: 11px; }
 .group-field-with-add { display: flex; gap: 4px; align-items: center; }
-.group-field-with-add select { flex: 1; }
+.group-field-with-add select { flex: 1; min-width: 0; }
 
 .group-badge {
-  width: 30px;
-  height: 30px;
-  border-radius: 50%;
+  min-width: 30px;
+  height: 26px;
+  padding: 0 9px;
+  border-radius: 13px;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 700;
   color: #fff;
   cursor: grab;
-  border: 3px solid transparent;
+  border: 2px solid transparent;
   opacity: 0.55;
-  flex: 0 0 auto;
+  flex: 0 1 auto;
+  max-width: 120px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .group-badge.filled { opacity: 1; }
 .group-badge.confirmed { border-color: #16a34a; box-shadow: 0 0 0 2px rgba(22,163,74,0.25); }
@@ -347,7 +394,6 @@ label:has(.file-input-hidden) { cursor: pointer; }
   align-items: center;
   justify-content: center;
   color: var(--muted);
-  margin-left: auto;
 }
 .icon-btn:hover { background: #f2f3f5; }
 .icon-btn-confirm { color: #16a34a; border-color: #bbf0cd; }
@@ -369,11 +415,15 @@ label:has(.file-input-hidden) { cursor: pointer; }
   align-items: center;
   justify-content: center;
   gap: 8px;
+  padding: 6px;
 }
 .group-badge-mini {
-  width: 26px; height: 26px; border-radius: 50%;
+  max-width: 100%;
+  padding: 3px 8px;
+  border-radius: 12px;
   display: flex; align-items: center; justify-content: center;
-  font-size: 11px; font-weight: 700; color: #fff;
+  font-size: 10px; font-weight: 700; color: #fff;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 .mini-btn {
   width: 22px; height: 22px; border-radius: 50%; border: none;
