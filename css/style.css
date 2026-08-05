@@ -350,7 +350,6 @@ label:has(.file-input-hidden) { cursor: pointer; }
 
 .group-workspace { display: flex; gap: 16px; flex: 1; min-height: 0; margin-top: 14px; }
 .group-cards-list { flex: 0 0 35%; min-width: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; padding-right: 6px; }
-.group-pdf-panel { flex: 1; min-width: 0; overflow-y: auto; border: 1px solid var(--border); border-radius: 10px; padding: 12px; background: #fafbfc; }
 
 .group-card { border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px; background: var(--panel); }
 .group-card-header { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; flex-wrap: wrap; }
@@ -426,21 +425,36 @@ label:has(.file-input-hidden) { cursor: pointer; }
 .icon-btn-confirm { color: #16a34a; border-color: #bbf0cd; }
 .icon-btn-confirm:hover { background: #eafcf1; }
 
-.pdf-view-control { display: flex; align-items: center; gap: 14px; margin-bottom: 10px; font-size: 12px; flex-wrap: wrap; }
-.pdf-view-toggle { display: flex; gap: 4px; background: #eef0f3; border-radius: 999px; padding: 3px; width: fit-content; }
-.pdf-view-btn { border: none; background: transparent; padding: 5px 12px; border-radius: 999px; font-size: 12px; font-weight: 600; color: var(--muted); cursor: pointer; }
-.pdf-view-btn.active { background: var(--panel); color: var(--text); box-shadow: 0 1px 3px rgba(0,0,0,0.12); }
-.pdf-zoom-slider-wrap { display: flex; align-items: center; gap: 8px; }
+.group-pdf-panel {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: #fafbfc;
+  overflow: hidden;
+}
+.pdf-panel-header {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+  flex: 0 0 auto;
+  padding: 12px;
+  border-bottom: 1px solid var(--border);
+  background: #fafbfc;
+}
+#groupPdfHint { padding: 0 12px; margin-top: 10px; }
+.group-pdf-pages-scroll { flex: 1; min-height: 0; overflow-y: auto; padding: 12px; }
+
+.pdf-zoom-slider-wrap { display: flex; align-items: center; gap: 8px; font-size: 12px; }
 .pdf-zoom-slider-wrap input[type="range"] { flex: 1; max-width: 180px; }
 .pdf-zoom-slider-wrap #groupZoomValue { width: 36px; text-align: right; }
 
-.group-pdf-pages { display: flex; gap: 16px; }
-/* Крупно — по одной странице на всю ширину блока, листается вниз */
-.group-pdf-pages.pdf-view-max { flex-direction: column; align-items: center; }
-.group-pdf-pages.pdf-view-max .pdf-page { width: 100%; }
-/* Список — можно масштабировать, несколько страниц в ряд */
-.group-pdf-pages.pdf-view-list { flex-wrap: wrap; align-items: flex-start; }
-.group-pdf-pages.pdf-view-list .pdf-page { width: var(--pdf-page-scale, 45%); }
+.group-pdf-pages { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 16px; }
+.pdf-page { width: var(--pdf-page-scale, 100%); }
 
 .pdf-page {
   position: relative;
@@ -456,9 +470,42 @@ label:has(.file-input-hidden) { cursor: pointer; }
 .pdf-page-label { font-size: 11px; color: var(--muted); margin-top: 4px; }
 .pdf-page.dropzone-active { outline: 2px dashed var(--primary); outline-offset: 2px; }
 
+.pdf-page.pdf-page-deleted { opacity: 0.45; }
+.pdf-page.pdf-page-deleted canvas { filter: grayscale(1); }
+
+/* Кнопки поворота/удаления сверху справа на каждой странице; поворот слева от удаления */
+.pdf-page-actions { position: absolute; top: 6px; right: 6px; display: flex; gap: 4px; z-index: 3; }
+.pdf-page-btn {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  border: 1px solid var(--border);
+  background: rgba(255,255,255,0.95);
+  cursor: pointer;
+  font-size: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text);
+  box-shadow: 0 1px 3px rgba(0,0,0,0.15);
+}
+.pdf-page-btn:hover { background: #fff; }
+.pdf-page-btn-danger { color: var(--danger); }
+.pdf-page-btn-danger:hover { background: #fde8e8; }
+.pdf-page-btn-restore {
+  width: auto;
+  border-radius: 999px;
+  padding: 0 10px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--primary-dark);
+}
+.pdf-page-btn-restore:hover { background: #e8f0fe; }
+
 .pdf-page-overlay {
   position: absolute;
   inset: 0;
+  z-index: 4;
   background: rgba(20, 22, 30, 0.55);
   border-radius: 8px;
   display: flex;
