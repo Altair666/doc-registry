@@ -285,6 +285,18 @@ $("#filterStage").addEventListener("change", renderTable);
    Добавление / редактирование документа
    ------------------------------------------------------------------------- */
 
+/** Показывает имя выбранного файла рядом со стилизованной кнопкой «Выбрать файл». */
+function wireFileNameDisplay(inputId, nameId) {
+  const input = $("#" + inputId);
+  const nameEl = $("#" + nameId);
+  if (!input || !nameEl) return;
+  input.addEventListener("change", () => {
+    nameEl.textContent = input.files[0] ? input.files[0].name : "Файл не выбран";
+  });
+}
+wireFileNameDisplay("fFile", "fFileName");
+wireFileNameDisplay("advanceFile", "advanceFileName");
+
 /** Кнопку «Сохранить» можно нажать только если: прикреплён файл,
     выбран вид документа и указан номер документа. */
 function updateSaveButtonState() {
@@ -298,6 +310,7 @@ $("#btnAdd").addEventListener("click", () => {
   $("#modalDocTitle").textContent = "Новый документ";
   ["fNumber", "fAmount", "fComment"].forEach((id) => ($("#" + id).value = ""));
   $("#fFile").value = "";
+  $("#fFileName").textContent = "Файл не выбран";
   $("#fDate").value = "";
   $("#fDate").disabled = true;
   typeCombo.populate(null);
@@ -305,6 +318,7 @@ $("#btnAdd").addEventListener("click", () => {
   $("#modalDoc").dataset.mode = "create";
   $("#modalDoc").classList.add("open");
   updateSaveButtonState();
+  if (typeof resetGroupModeUI === "function") resetGroupModeUI();
 });
 
 // Дата активируется, как только прикреплён файл, и сразу проставляется сегодняшним числом
@@ -406,6 +420,7 @@ function renderCard(doc) {
   if (nextStage) $("#advanceTarget").value = nextStage.id;
 
   $("#advanceFile").value = "";
+  $("#advanceFileName").textContent = "Файл не выбран";
 
   const filesSorted = [...doc.files].sort((a, b) => b.version - a.version);
   const filesBody = $("#filesBody");
@@ -490,7 +505,10 @@ function renderStagesList() {
       (s, i) => `
     <div class="stage-row" data-id="${s.id}">
       <span class="stage-order">${i + 1}</span>
-      <input type="color" value="${s.color || "#94a3b8"}" data-color-id="${s.id}" title="Цвет бейджа стадии">
+      <span class="color-swatch-wrap" title="Изменить цвет бейджа">
+        <input type="color" value="${s.color || "#94a3b8"}" data-color-id="${s.id}">
+        <span class="pencil-icon">✎</span>
+      </span>
       <input type="text" value="${escapeHtml(s.name)}" data-id="${s.id}">
       <button class="btn btn-secondary btn-small" data-up="${s.id}" ${i === 0 ? "disabled" : ""}>↑</button>
       <button class="btn btn-secondary btn-small" data-down="${s.id}" ${i === stages.length - 1 ? "disabled" : ""}>↓</button>
