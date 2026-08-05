@@ -414,6 +414,8 @@ let groupPdfRenderToken = 0;
 async function renderGroupPdfPages() {
   const myToken = ++groupPdfRenderToken;
   const container = $("#groupPdfPages");
+  const scrollWrap = $(".group-pdf-pages-scroll");
+  const savedScrollTop = scrollWrap ? scrollWrap.scrollTop : 0;
   if (!groupPdfDoc) {
     container.innerHTML = "";
     return;
@@ -498,6 +500,8 @@ async function renderGroupPdfPages() {
       if (pageEl) renderPendingOverlay(pageEl, idx, i === 0);
     });
   });
+
+  if (scrollWrap) scrollWrap.scrollTop = savedScrollTop;
 }
 
 function wirePageDropzone(pageEl, pageNum) {
