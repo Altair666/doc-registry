@@ -774,12 +774,29 @@ function applyColumnWidths() {
   const ths = $$("#registryTable thead th[data-width-key]");
   ths.forEach((th) => {
     const saved = config.columnWidths && config.columnWidths[th.dataset.widthKey];
-    if (typeof saved === "number" && saved >= 50 && saved <= MAX_COLUMN_WIDTH) {
+    const min = minWidthFor(th.dataset.widthKey);
+    if (typeof saved === "number" && saved >= min && saved <= MAX_COLUMN_WIDTH) {
       th.style.width = saved + "px";
     }
   });
   if (ths.length) ths[0].dataset.ownWidth = parseFloat(ths[0].style.width) || 100;
   updateTableTotalWidth();
+}
+
+/** Минимальная разумная ширина каждого столбца — чтобы заголовок и
+    содержимое (например кнопка "Продвинуть →") не сжимались до
+    нечитаемого/обрезанного состояния. */
+const MIN_COLUMN_WIDTHS = {
+  document: 120,
+  type: 55,
+  counterparty: 90,
+  amount: 60,
+  stage: 70,
+  files: 65,
+  actions: 100,
+};
+function minWidthFor(key) {
+  return MIN_COLUMN_WIDTHS[key] || 50;
 }
 
 function makeColumnsResizable() {
@@ -798,14 +815,25 @@ function makeColumnsResizable() {
       const startWidth = parseFloat(th.style.width) || th.getBoundingClientRect().width || 100;
       const nextStartWidth = parseFloat(nextTh.style.width) || nextTh.getBoundingClientRect().width || 100;
       const combined = startWidth + nextStartWidth;
+      const minTh = minWidthFor(th.dataset.widthKey);
+      const minNext = minWidthFor(nextTh.dataset.widthKey);
       resizer.classList.add("active");
 
       function onMove(ev) {
-        let newWidth = Math.round(startWidth + (ev.clientX - startX));
-        newWidth = Math.max(50, Math.min(combined - 50, newWidth));
-        th.style.width = newWidth + "px";
-        nextTh.style.width = combined - newWidth + "px";
-        if (idx === 0) th.dataset.ownWidth = newWidth;
+        // Пока соседу есть куда сжиматься — просто переливаем ширину между
+        // двумя столбцами (общая ширина таблицы не меняется, граница
+        // таблицы неподвижна). Как только сосед упёрся в свой минимум,
+        // дальнейшее движение мыши уже не забирает у него ширину, а
+        // добавляет её к общей ширине таблицы — тогда появляется
+        // горизонтальный скролл, если места на экране не хватает.
+        let desired = Math.round(startWidth + (ev.clientX - startX));
+        desired = Math.max(minTh, desired);
+        let nextWidth = combined - desired;
+        if (nextWidth < minNext) nextWidth = minNext;
+
+        th.style.width = desired + "px";
+        nextTh.style.width = nextWidth + "px";
+        if (idx === 0) th.dataset.ownWidth = desired;
         updateTableTotalWidth();
       }
       async function onUp() {
