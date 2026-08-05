@@ -703,17 +703,16 @@ $$(".modal-overlay").forEach((ov) => {
 
 /* -------------------------------------------------------------------------
    Изменение ширины столбцов таблицы реестра (перетаскивание границы
-   заголовка). Раньше ширина таблицы задавалась через CSS (auto/
-   max-content) — в table-layout:fixed браузеры трактуют это неодинаково,
-   из-за чего при перетягивании одной границы "плыли" все остальные.
-   Теперь ширина таблицы — это явная сумма ширин столбцов, которую мы
-   сами пересчитываем и выставляем в пикселях при каждом движении мыши.
-   Итоговые ширины сохраняются в config.columnWidths (config.json).
+   заголовка). Граница между двумя столбцами при перетягивании забирает
+   ширину у одного и отдаёт другому (как в Excel/типичных таблицах) —
+   поэтому общая ширина таблицы и её правая граница НЕ меняются, а
+   двигается только та граница, которую тянете. Итоговые ширины
+   сохраняются в config.columnWidths (config.json).
    ------------------------------------------------------------------------- */
 
-/** Пересчитывает и выставляет width таблицы = сумма ширин всех столбцов.
-    Без этого браузер может по-своему растягивать/сжимать столбцы, из-за
-    чего при ресайзе одного "плывут" остальные. */
+/** Выставляет width таблицы = сумма ширин всех столбцов. Вызывается один
+    раз при входе в приложение — дальше сумма не меняется сама по себе,
+    т.к. ресайз всегда переносит ширину между соседними столбцами. */
 function updateTableTotalWidth() {
   const table = $("#registryTable");
   const ths = $$("#registryTable thead th[data-width-key]");
@@ -737,7 +736,8 @@ function applyColumnWidths() {
 function makeColumnsResizable() {
   const ths = $$("#registryTable thead th[data-width-key]");
   ths.forEach((th, idx) => {
-    if (idx === ths.length - 1) return; // последний столбец (кнопка) не тянем
+    if (idx === ths.length - 1) return; // у последнего столбца нет соседа справа — не тянем
+    const nextTh = ths[idx + 1];
     const resizer = document.createElement("div");
     resizer.className = "col-resizer";
     th.appendChild(resizer);
@@ -746,22 +746,24 @@ function makeColumnsResizable() {
       e.preventDefault();
       e.stopPropagation();
       const startX = e.clientX;
-      const startWidth = th.getBoundingClientRect().width || parseFloat(th.style.width) || 100;
-      let currentWidth = startWidth;
+      const startWidth = parseFloat(th.style.width) || th.getBoundingClientRect().width || 100;
+      const nextStartWidth = parseFloat(nextTh.style.width) || nextTh.getBoundingClientRect().width || 100;
+      const combined = startWidth + nextStartWidth;
       resizer.classList.add("active");
 
       function onMove(ev) {
-        currentWidth = Math.max(50, Math.round(startWidth + (ev.clientX - startX)));
-        th.style.width = currentWidth + "px";
-        updateTableTotalWidth();
+        let newWidth = Math.round(startWidth + (ev.clientX - startX));
+        newWidth = Math.max(50, Math.min(combined - 50, newWidth));
+        th.style.width = newWidth + "px";
+        nextTh.style.width = combined - newWidth + "px";
       }
       async function onUp() {
         resizer.classList.remove("active");
         document.removeEventListener("mousemove", onMove);
         document.removeEventListener("mouseup", onUp);
-        updateTableTotalWidth();
         if (!config.columnWidths) config.columnWidths = {};
-        config.columnWidths[th.dataset.widthKey] = currentWidth;
+        config.columnWidths[th.dataset.widthKey] = parseFloat(th.style.width);
+        config.columnWidths[nextTh.dataset.widthKey] = parseFloat(nextTh.style.width);
         await saveConfig();
       }
       document.addEventListener("mousemove", onMove);
