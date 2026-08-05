@@ -14,6 +14,16 @@ let groupPdfBytesForSplit = null; // ArrayBuffer — отдельная копи
 let groupTotalPages = 0;
 let groupConsumedPages = new Set(); // номера страниц (1-based), уже подтверждённые за какой-то группой
 
+/** Ширина рендера канваса в пикселях — с запасом, чтобы при масштабе
+    100% (страница на всю ширину блока) картинка оставалась чёткой. */
+const GROUP_PDF_RENDER_WIDTH = 900;
+
+$("#groupZoom").addEventListener("input", () => {
+  const val = $("#groupZoom").value;
+  $("#groupZoomValue").textContent = val + "%";
+  $("#groupPdfPages").style.setProperty("--pdf-page-scale", val + "%");
+});
+
 /* -------------------------------------------------------------------------
    Ленивая подгрузка pdf.js / pdf-lib — только когда реально понадобились
    ------------------------------------------------------------------------- */
@@ -74,6 +84,9 @@ function resetGroupModeUI() {
   $("#groupFileName").textContent = "Файл не выбран";
   $("#groupPdfHint").style.display = "block";
   $("#groupPdfPages").innerHTML = "";
+  $("#groupPdfPages").style.setProperty("--pdf-page-scale", "100%");
+  $("#groupZoom").value = 100;
+  $("#groupZoomValue").textContent = "100%";
   $("#groupCountInput").value = 1;
 
   setGroupCount(1);
@@ -145,7 +158,7 @@ function renderGroupCards() {
       const cpOptions =
         `<option value="" ${g.counterparty ? "" : "selected"}>—</option>` +
         config.counterparties.map((c) => `<option value="${escapeHtml(c)}" ${c === g.counterparty ? "selected" : ""}>${escapeHtml(c)}</option>`).join("");
-      const badgeLabel = g.doc_type ? escapeHtml(g.doc_type) : String(idx + 1);
+      const badgeLabel = g.doc_type ? escapeHtml(buildDocLabel(g)) : String(idx + 1);
       return `
       <div class="group-card" data-group="${idx}">
         <div class="group-card-header">
@@ -270,7 +283,7 @@ function updateGroupBadgeVisual(idx) {
   const g = groups[idx];
   badge.classList.toggle("filled", isGroupDataFilled(g));
   badge.classList.toggle("confirmed", !!g.confirmed);
-  badge.textContent = g.doc_type || String(idx + 1);
+  badge.textContent = g.doc_type ? buildDocLabel(g) : String(idx + 1);
 }
 
 /* -------------------------------------------------------------------------
@@ -380,7 +393,7 @@ async function renderGroupPdfPages() {
     const page = await groupPdfDoc.getPage(p);
     if (myToken !== groupPdfRenderToken) return;
     const baseViewport = page.getViewport({ scale: 1 });
-    const scale = 150 / baseViewport.width;
+    const scale = GROUP_PDF_RENDER_WIDTH / baseViewport.width;
     const viewport = page.getViewport({ scale });
     canvas.width = viewport.width;
     canvas.height = viewport.height;
@@ -421,7 +434,7 @@ function renderPendingOverlay(pageEl, idx, showControls) {
   const overlay = document.createElement("div");
   overlay.className = "pdf-page-overlay";
   overlay.innerHTML =
-    `<span class="group-badge-mini" style="background:${g.color}">${escapeHtml(g.doc_type || String(idx + 1))}</span>` +
+    `<span class="group-badge-mini" style="background:${g.color}">${escapeHtml(g.doc_type ? buildDocLabel(g) : String(idx + 1))}</span>` +
     (showControls
       ? `<span>
            <button type="button" class="mini-btn mini-confirm" data-mini-confirm="${idx}" title="Подтвердить">✓</button>
