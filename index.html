@@ -44,15 +44,21 @@
     <select id="filterStage"><option value="">Все стадии</option></select>
   </div>
 
-  <table class="registry-table">
+  <table class="registry-table" id="registryTable">
     <thead>
       <tr>
-        <th>Документ</th><th>Вид</th><th>Контрагент</th><th>Сумма</th>
-        <th>Стадия</th><th>Файлы</th><th></th>
+        <th data-col="document" style="width:220px">Документ</th>
+        <th data-col="type" style="width:90px">Вид</th>
+        <th data-col="counterparty" style="width:160px">Контрагент</th>
+        <th data-col="amount" style="width:90px">Сумма</th>
+        <th data-col="stage" style="width:120px">Стадия</th>
+        <th data-col="files" style="width:70px">Файлы</th>
+        <th style="width:150px"></th>
       </tr>
     </thead>
     <tbody id="docsBody"></tbody>
   </table>
+  <p class="muted" style="margin-top:6px">Совет: правой кнопкой мыши по заголовку столбца — фильтр по значению. Границу заголовка можно тянуть, чтобы менять ширину столбца.</p>
   <div id="emptyState" class="empty-state" style="display:none">
     Пока нет ни одного документа. Нажмите «Добавить документ».
   </div>
