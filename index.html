@@ -136,6 +136,11 @@
       <div class="group-workspace">
         <div id="groupCardsList" class="group-cards-list"></div>
         <div class="group-pdf-panel">
+          <div class="pdf-zoom-control">
+            <span class="muted">Масштаб</span>
+            <input type="range" id="groupZoom" min="35" max="100" value="100" step="5">
+            <span id="groupZoomValue" class="muted">100%</span>
+          </div>
           <p class="muted" id="groupPdfHint">Прикрепите PDF справа сверху, чтобы разместить страницы по группам.</p>
           <div id="groupPdfPages" class="group-pdf-pages"></div>
         </div>
