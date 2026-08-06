@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Реестр учёта первичных документов</title>
-<link rel="stylesheet" href="css/style.css?v=4.0.0">
+<link rel="stylesheet" href="css/style.css?v=4.1.0">
 </head>
 <body>
 
@@ -117,6 +117,11 @@
         <div class="group-pdf-panel">
           <div class="pdf-panel-header">
             <span class="muted" id="singlePreviewLabel">Превью загруженных файлов</span>
+            <span class="pdf-zoom-slider-wrap" style="margin-left:auto">
+              <span class="muted">Масштаб</span>
+              <input type="range" id="singleZoom" min="20" max="100" value="70" step="5">
+              <span id="singleZoomValue" class="muted">70%</span>
+            </span>
           </div>
           <p class="muted" id="singlePreviewHint">Выберите файлы (можно сразу несколько) — они появятся здесь и слева в виде карточек.</p>
           <div class="group-pdf-pages-scroll">
@@ -243,11 +248,11 @@
   </div>
 </div>
 
-<script src="js/version.js?v=4.0.0"></script>
-<script src="js/config.js?v=4.0.0"></script>
-<script src="js/storage.js?v=4.0.0"></script>
-<script src="js/app.js?v=4.0.0"></script>
-<script src="js/group.js?v=4.0.0"></script>
-<script src="js/single.js?v=4.0.0"></script>
+<script src="js/version.js?v=4.1.0"></script>
+<script src="js/config.js?v=4.1.0"></script>
+<script src="js/storage.js?v=4.1.0"></script>
+<script src="js/app.js?v=4.1.0"></script>
+<script src="js/group.js?v=4.1.0"></script>
+<script src="js/single.js?v=4.1.0"></script>
 </body>
 </html>
