@@ -1,13 +1,14 @@
 /* ==========================================================================
-   Одиночный режим добавления документов — теперь тоже пакетный: можно
-   выбрать сразу несколько файлов (каждый файл = один будущий документ),
-   для каждого — своя карточка с полями (как в групповом режиме), кол-во
-   карточек считается автоматически по числу выбранных файлов. Справа —
-   либо превью всех загруженных файлов (когда ничего не выбрано слева),
-   либо полное превью конкретного файла (после клика по его карточке).
+   Одиночный режим добавления документов — пакетный: можно выбрать сразу
+   несколько файлов (каждый файл = один будущий документ), для каждого —
+   своя карточка с полями (как в групповом режиме), кол-во карточек
+   считается автоматически по числу выбранных файлов. Справа — либо
+   превью всех загруженных файлов (когда ничего не выбрано слева), либо
+   полное превью конкретного файла (после клика по его карточке) с
+   возможностью повернуть/удалить отдельные страницы.
    ========================================================================== */
 
-let singleItems = []; // { id, file, color, doc_type, number, doc_date, counterparty, amount, comment, confirmed, pdfDoc, numPages, previewFailed }
+let singleItems = []; // { id, file, color, doc_type, number, doc_date, counterparty, amount, comment, confirmed, pdfDoc, numPages, previewFailed, pageRotations, deletedPages }
 let singleSelectedIdx = null; // какая карточка выбрана (её файл показан справа), null = галерея всех
 let singleNextId = 1;
 let singlePreviewToken = 0;
@@ -20,10 +21,19 @@ function resetSingleModeUI() {
   $("#fFile").value = "";
   $("#fFileName").textContent = "Файлы не выбраны";
   $("#singleCountInput").value = 0;
+  $("#singlePreviewArea").style.setProperty("--pdf-page-scale", "70%");
+  $("#singleZoom").value = 70;
+  $("#singleZoomValue").textContent = "70%";
   renderSingleCards();
   renderSinglePreview();
   updateSingleSaveButtonState();
 }
+
+$("#singleZoom").addEventListener("input", () => {
+  const val = $("#singleZoom").value;
+  $("#singleZoomValue").textContent = val + "%";
+  $("#singlePreviewArea").style.setProperty("--pdf-page-scale", val + "%");
+});
 
 /* -------------------------------------------------------------------------
    Выбор файлов
@@ -32,7 +42,7 @@ function resetSingleModeUI() {
 $("#fFile").addEventListener("change", async () => {
   const files = Array.from($("#fFile").files || []);
   if (!files.length) return;
-  await ensureGroupVendorLoaded(); // тот же pdf.js, что и в групповом режиме — для превью
+  await ensureGroupVendorLoaded(); // тот же pdf.js/pdf-lib, что и в групповом режиме
 
   singleItems = files.map((file, i) => {
     const guess = guessFieldsFromFilename(file.name);
@@ -50,6 +60,8 @@ $("#fFile").addEventListener("change", async () => {
       pdfDoc: null,
       numPages: null,
       previewFailed: false,
+      pageRotations: {},
+      deletedPages: new Set(),
     };
   });
   singleSelectedIdx = null;
@@ -117,14 +129,16 @@ function renderSingleCards() {
         `<option value="" ${!it.counterparty ? "selected" : ""}>—</option>` +
         config.counterparties.map((c) => `<option value="${escapeHtml(c)}" ${c === it.counterparty ? "selected" : ""}>${escapeHtml(c)}</option>`).join("");
       const badgeLabel = it.doc_type ? escapeHtml(buildDocLabel(it)) : escapeHtml(it.file.name);
+      const filled = isGroupDataFilled(it);
 
       return `
       <div class="group-card single-card${singleSelectedIdx === idx ? " single-card-selected" : ""}" data-single="${idx}">
         <div class="group-card-header">
-          <span class="group-badge${isGroupDataFilled(it) ? " filled" : ""}${it.confirmed ? " confirmed" : ""}"
+          <span class="group-badge${filled ? " filled" : ""}${it.confirmed ? " confirmed" : ""}"
                 style="background:${it.color}" title="${escapeHtml(it.file.name)}">${badgeLabel}</span>
           <span class="group-card-actions">
-            <button type="button" class="icon-btn icon-btn-confirm" data-single-confirm="${idx}" title="Подтвердить">✓</button>
+            <button type="button" class="icon-btn icon-btn-confirm${filled ? " ready" : ""}${it.confirmed ? " confirmed" : ""}" data-single-confirm="${idx}" title="Подтвердить">✓</button>
+            <button type="button" class="icon-btn icon-btn-danger" data-single-delete="${idx}" title="Удалить документ вместе с файлом">✕</button>
           </span>
         </div>
         <div class="form-grid group-fields-grid">
@@ -200,6 +214,13 @@ function wireSingleCardEvents() {
     });
   });
 
+  list.querySelectorAll("[data-single-delete]").forEach((btn) => {
+    btn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      deleteSingleItem(Number(btn.dataset.singleDelete));
+    });
+  });
+
   list.querySelectorAll(".single-card").forEach((card) => {
     card.addEventListener("click", (e) => {
       if (e.target.closest("select, input, textarea, button")) return;
@@ -208,19 +229,40 @@ function wireSingleCardEvents() {
   });
 }
 
+/** Удаляет карточку документа вместе с привязанным к ней файлом. */
+function deleteSingleItem(idx) {
+  singleItems.splice(idx, 1);
+  if (singleSelectedIdx === idx) singleSelectedIdx = null;
+  else if (singleSelectedIdx != null && singleSelectedIdx > idx) singleSelectedIdx -= 1;
+
+  $("#singleCountInput").value = singleItems.length;
+  $("#fFileName").textContent =
+    singleItems.length === 0 ? "Файлы не выбраны" : singleItems.length === 1 ? singleItems[0].file.name : `${singleItems.length} файлов`;
+
+  renderSingleCards();
+  renderSinglePreview();
+  updateSingleSaveButtonState();
+}
+
 function updateSingleBadge(idx) {
   const card = $(`.single-card[data-single="${idx}"]`);
   if (!card) return;
   const it = singleItems[idx];
+  const filled = isGroupDataFilled(it);
   const badge = card.querySelector(".group-badge");
-  badge.classList.toggle("filled", isGroupDataFilled(it));
+  badge.classList.toggle("filled", filled);
   badge.classList.toggle("confirmed", !!it.confirmed);
   badge.textContent = it.doc_type ? buildDocLabel(it) : it.file.name;
+  const confirmBtn = card.querySelector("[data-single-confirm]");
+  confirmBtn.classList.toggle("ready", filled);
+  confirmBtn.classList.toggle("confirmed", !!it.confirmed);
 }
 
+/** Кнопка «Добавить документы» активна только когда ВСЕ карточки
+    подтверждены (галочка зелёная) и полностью заполнены. */
 function updateSingleSaveButtonState() {
-  const ready = singleItems.some((it) => it.confirmed && isGroupDataFilled(it));
-  $("#btnDocSave").disabled = !ready;
+  const allReady = singleItems.length > 0 && singleItems.every((it) => it.confirmed && isGroupDataFilled(it));
+  $("#btnDocSave").disabled = !allReady;
 }
 
 /* -------------------------------------------------------------------------
@@ -253,6 +295,8 @@ async function ensurePdfLoadedForItem(it) {
 async function renderSinglePreview() {
   const myToken = ++singlePreviewToken;
   const area = $("#singlePreviewArea");
+  const scrollWrap = area.closest(".group-pdf-pages-scroll");
+  const savedScrollTop = scrollWrap ? scrollWrap.scrollTop : 0;
   area.innerHTML = "";
   $("#singlePreviewHint").style.display = singleItems.length ? "none" : "block";
 
@@ -273,7 +317,6 @@ async function renderSinglePreview() {
   if (!isPdfFile(it.file)) {
     const wrap = document.createElement("div");
     wrap.className = "pdf-page";
-    wrap.style.width = "260px";
     wrap.innerHTML = `<div class="pdf-page-label">${escapeHtml(it.file.name)}</div><p class="muted" style="padding:16px 4px">Превью недоступно для этого типа файла — но файл будет прикреплён при добавлении.</p>`;
     area.appendChild(wrap);
     return;
@@ -289,36 +332,65 @@ async function renderSinglePreview() {
 
   for (let p = 1; p <= it.numPages; p++) {
     if (myToken !== singlePreviewToken) return;
-    const page = await it.pdfDoc.getPage(p);
-    if (myToken !== singlePreviewToken) return;
-    const wrap = document.createElement("div");
-    wrap.className = "pdf-page";
-    wrap.style.width = "70%";
-    const canvas = document.createElement("canvas");
-    wrap.appendChild(canvas);
-    const label = document.createElement("div");
-    label.className = "pdf-page-label";
-    label.textContent = "Стр. " + p;
-    wrap.appendChild(label);
+    if (it.deletedPages.has(p)) continue;
 
-    const baseViewport = page.getViewport({ scale: 1 });
-    const scale = GROUP_PDF_RENDER_WIDTH / baseViewport.width;
-    const viewport = page.getViewport({ scale });
-    canvas.width = viewport.width;
-    canvas.height = viewport.height;
-    await page.render({ canvasContext: canvas.getContext("2d"), viewport }).promise;
+    const el = await buildSingleFullPage(it, p, singleSelectedIdx);
     if (myToken !== singlePreviewToken) return;
-    area.appendChild(wrap);
+    area.appendChild(el);
   }
+
+  if (scrollWrap) scrollWrap.scrollTop = savedScrollTop;
+}
+
+/** Строит страницу полного превью с кнопками поворота/удаления — как в
+    групповом режиме, только состояние привязано к конкретному файлу. */
+async function buildSingleFullPage(it, p, itemIdx) {
+  const wrap = document.createElement("div");
+  wrap.className = "pdf-page";
+  wrap.dataset.page = String(p);
+
+  const actions = document.createElement("div");
+  actions.className = "pdf-page-actions";
+  actions.innerHTML =
+    `<button type="button" class="pdf-page-btn" data-single-rotate="${p}" title="Повернуть">⟳</button>` +
+    `<button type="button" class="pdf-page-btn pdf-page-btn-danger" data-single-delete-page="${p}" title="Удалить страницу">✕</button>`;
+  wrap.appendChild(actions);
+
+  const canvas = document.createElement("canvas");
+  wrap.appendChild(canvas);
+  const label = document.createElement("div");
+  label.className = "pdf-page-label";
+  label.textContent = "Стр. " + p;
+  wrap.appendChild(label);
+
+  const page = await it.pdfDoc.getPage(p);
+  const rotation = (page.rotate + (it.pageRotations[p] || 0)) % 360;
+  const baseViewport = page.getViewport({ scale: 1, rotation });
+  const scale = GROUP_PDF_RENDER_WIDTH / baseViewport.width;
+  const viewport = page.getViewport({ scale, rotation });
+  canvas.width = viewport.width;
+  canvas.height = viewport.height;
+  await page.render({ canvasContext: canvas.getContext("2d"), viewport }).promise;
+
+  actions.querySelector("[data-single-rotate]").addEventListener("click", (e) => {
+    e.stopPropagation();
+    it.pageRotations[p] = ((it.pageRotations[p] || 0) + 90) % 360;
+    if (singleSelectedIdx === itemIdx) renderSinglePreview();
+  });
+  actions.querySelector("[data-single-delete-page]").addEventListener("click", (e) => {
+    e.stopPropagation();
+    it.deletedPages.add(p);
+    if (singleSelectedIdx === itemIdx) renderSinglePreview();
+  });
+
+  return wrap;
 }
 
 async function buildSingleThumb(i) {
   const it = singleItems[i];
   const wrap = document.createElement("div");
   wrap.className = "pdf-page single-thumb";
-  wrap.style.width = "150px";
   wrap.dataset.singleThumb = String(i);
-  wrap.style.cursor = "pointer";
 
   const canvas = document.createElement("canvas");
   wrap.appendChild(canvas);
@@ -351,13 +423,46 @@ async function buildSingleThumb(i) {
    Добавление документов
    ------------------------------------------------------------------------- */
 
+/** Если файл — PDF и у него есть повороты/удалённые страницы, нарезает
+    через pdf-lib новый файл с применёнными изменениями. Если изменений
+    нет — просто возвращает исходный файл как есть (без лишней работы). */
+async function buildFinalFileForItem(it) {
+  const hasRotations = it.pageRotations && Object.keys(it.pageRotations).some((p) => it.pageRotations[p]);
+  const hasDeletions = it.deletedPages && it.deletedPages.size > 0;
+  if (!isPdfFile(it.file) || (!hasRotations && !hasDeletions)) {
+    return it.file;
+  }
+
+  const bytes = await it.file.arrayBuffer();
+  const srcPdf = await PDFLib.PDFDocument.load(bytes);
+  const totalPages = srcPdf.getPageCount();
+  const keepIndices = [];
+  for (let p = 1; p <= totalPages; p++) {
+    if (!it.deletedPages.has(p)) keepIndices.push(p - 1);
+  }
+  if (!keepIndices.length) {
+    alert(`В файле «${it.file.name}» удалены все страницы — оставьте хотя бы одну.`);
+    return null;
+  }
+
+  const outPdf = await PDFLib.PDFDocument.create();
+  const copiedPages = await outPdf.copyPages(srcPdf, keepIndices);
+  copiedPages.forEach((pg, i) => {
+    const originalPageNum = keepIndices[i] + 1;
+    const extra = (it.pageRotations && it.pageRotations[originalPageNum]) || 0;
+    if (extra) {
+      const current = pg.getRotation().angle || 0;
+      pg.setRotation(PDFLib.degrees((current + extra) % 360));
+    }
+    outPdf.addPage(pg);
+  });
+  const outBytes = await outPdf.save();
+  return new File([outBytes], it.file.name, { type: "application/pdf" });
+}
+
 $("#btnDocSave").addEventListener("click", async () => {
   const ready = singleItems.filter((it) => it.confirmed && isGroupDataFilled(it));
-  const skipped = singleItems.length - ready.length;
   if (!ready.length) return;
-  if (skipped > 0 && !confirm(`${ready.length} документ(ов) готово к добавлению, ${skipped} будет пропущено (не заполнены поля или не подтверждено галочкой). Продолжить?`)) {
-    return;
-  }
 
   const firstStage = orderedStages()[0];
   if (!firstStage) {
@@ -366,6 +471,9 @@ $("#btnDocSave").addEventListener("click", async () => {
   }
 
   for (const it of ready) {
+    const finalFile = await buildFinalFileForItem(it);
+    if (!finalFile) continue; // например, все страницы файла оказались удалены
+
     const ts = nowIso();
     const doc = {
       id: state.nextDocId++,
@@ -381,7 +489,7 @@ $("#btnDocSave").addEventListener("click", async () => {
       files: [],
     };
     state.documents.push(doc);
-    await attachFileToDoc(doc, it.file, doc.stage_id);
+    await attachFileToDoc(doc, finalFile, doc.stage_id);
   }
 
   await saveState();
