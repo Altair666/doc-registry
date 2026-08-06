@@ -205,27 +205,6 @@ function renderStagesSelects() {
 }
 
 /* -------------------------------------------------------------------------
-   Редактируемые списки (справочники): вид документа / контрагент
-   ------------------------------------------------------------------------- */
-
-const typeCombo = setupCombo({
-  selectEl: $("#fType"),
-  inputEl: $("#fTypeInput"),
-  getOptions: () => config.docTypes,
-  addOption: (v) => addDocType(v),
-  includeEmpty: false,
-  onChange: () => updateSaveButtonState(),
-});
-
-const counterpartyCombo = setupCombo({
-  selectEl: $("#fCounterparty"),
-  inputEl: $("#fCounterpartyInput"),
-  getOptions: () => config.counterparties,
-  addOption: (v) => addCounterparty(v),
-  includeEmpty: true,
-});
-
-/* -------------------------------------------------------------------------
    Таблица документов
    ------------------------------------------------------------------------- */
 
@@ -296,7 +275,9 @@ $("#search").addEventListener("input", renderTable);
 $("#filterStage").addEventListener("change", renderTable);
 
 /* -------------------------------------------------------------------------
-   Добавление / редактирование документа
+   Добавление документа. Одиночный режим теперь тоже работает через
+   карточки (как групповой) — см. js/single.js. Здесь остаётся только
+   открытие/закрытие окна и утилита показа имени файла.
    ------------------------------------------------------------------------- */
 
 /** Показывает имя выбранного файла рядом со стилизованной кнопкой «Выбрать файл». */
@@ -308,102 +289,16 @@ function wireFileNameDisplay(inputId, nameId) {
     nameEl.textContent = input.files[0] ? input.files[0].name : "Файл не выбран";
   });
 }
-wireFileNameDisplay("fFile", "fFileName");
 wireFileNameDisplay("advanceFile", "advanceFileName");
 
-/** Кнопку «Сохранить» можно нажать только если: прикреплён файл,
-    выбран вид документа и указан номер документа. */
-function updateSaveButtonState() {
-  const hasFile = $("#fFile").files && $("#fFile").files.length > 0;
-  const typeReady = $("#fType").style.display !== "none" && !!$("#fType").value && $("#fType").value !== NEW_OPTION_VALUE;
-  const hasNumber = $("#fNumber").value.trim().length > 0;
-  $("#btnDocSave").disabled = !(hasFile && typeReady && hasNumber);
-}
-
 $("#btnAdd").addEventListener("click", () => {
-  $("#modalDocTitle").textContent = "Новый документ";
-  ["fNumber", "fAmount", "fComment"].forEach((id) => ($("#" + id).value = ""));
-  $("#fFile").value = "";
-  $("#fFileName").textContent = "Файл не выбран";
-  $("#fDate").value = "";
-  $("#fDate").disabled = true;
-  typeCombo.populate(null);
-  counterpartyCombo.populate(null);
   $("#modalDoc").dataset.mode = "create";
   $("#modalDoc").classList.add("open");
-  updateSaveButtonState();
   if (typeof resetGroupModeUI === "function") resetGroupModeUI();
+  if (typeof resetSingleModeUI === "function") resetSingleModeUI();
 });
-
-// Дата активируется, как только прикреплён файл, и сразу проставляется сегодняшним числом
-$("#fFile").addEventListener("change", () => {
-  if ($("#modalDoc").dataset.mode !== "create") return;
-  if ($("#fFile").files[0]) {
-    $("#fDate").disabled = false;
-    if (!$("#fDate").value) $("#fDate").value = todayIso();
-  }
-  updateSaveButtonState();
-});
-
-$("#fType").addEventListener("change", updateSaveButtonState);
-$("#fTypeInput").addEventListener("input", updateSaveButtonState);
-$("#fTypeInput").addEventListener("blur", updateSaveButtonState);
-$("#fNumber").addEventListener("input", updateSaveButtonState);
 
 $("#btnDocCancel").addEventListener("click", () => $("#modalDoc").classList.remove("open"));
-
-$("#btnDocSave").addEventListener("click", async () => {
-  typeCombo.commit();
-  counterpartyCombo.commit();
-
-  const typeVal = $("#fType").value;
-  const cpVal = $("#fCounterparty").value;
-
-  if (!typeVal) {
-    alert("Укажите вид документа (или добавьте новый)");
-    return;
-  }
-  const number = $("#fNumber").value.trim();
-  if (!number) {
-    alert("Укажите имя документа (номер)");
-    return;
-  }
-
-  const payload = {
-    doc_type: typeVal,
-    number,
-    doc_date: $("#fDate").value,
-    counterparty: cpVal,
-    amount: $("#fAmount").value,
-    comment: $("#fComment").value,
-  };
-
-  const firstStage = orderedStages()[0];
-  if (!firstStage) {
-    alert("Нет ни одной стадии. Создайте стадию сначала (в Справочниках).");
-    return;
-  }
-  const ts = nowIso();
-  const doc = {
-    id: state.nextDocId++,
-    ...payload,
-    stage_id: firstStage.id,
-    created_at: ts,
-    updated_at: ts,
-    files: [],
-  };
-  state.documents.push(doc);
-
-  const fileInput = $("#fFile");
-  if (fileInput.files[0]) {
-    await attachFileToDoc(doc, fileInput.files[0], doc.stage_id);
-  }
-
-  await saveState();
-  await saveConfig();
-  $("#modalDoc").classList.remove("open");
-  renderTable();
-});
 
 /* -------------------------------------------------------------------------
    Карточка документа
