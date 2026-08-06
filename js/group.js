@@ -76,8 +76,10 @@ $$("#modeToggle .mode-toggle-btn").forEach((btn) => {
     $$("#modeToggle .mode-toggle-btn").forEach((b) => b.classList.remove("active"));
     btn.classList.add("active");
     const mode = btn.dataset.mode;
-    $("#modalDocInner").classList.toggle("modal-doc-group", mode === "group");
     $("#groupTopbarExtra").style.display = mode === "group" ? "flex" : "none";
+    $("#singleTopbarExtra").style.display = mode === "single" ? "flex" : "none";
+    $("#singleModeWrap").style.display = mode === "single" ? "flex" : "none";
+    $("#groupModePanel").style.display = mode === "group" ? "flex" : "none";
     $("#modalDocTitle").textContent = mode === "group" ? "Новый документ — группа" : "Новый документ";
     if (mode === "group") {
       await ensureGroupVendorLoaded();
@@ -89,8 +91,10 @@ $$("#modeToggle .mode-toggle-btn").forEach((btn) => {
     каждом открытии окна «Новый документ» (см. app.js, btnAdd). */
 function resetGroupModeUI() {
   $$("#modeToggle .mode-toggle-btn").forEach((b) => b.classList.toggle("active", b.dataset.mode === "single"));
-  $("#modalDocInner").classList.remove("modal-doc-group");
   $("#groupTopbarExtra").style.display = "none";
+  $("#singleTopbarExtra").style.display = "flex";
+  $("#singleModeWrap").style.display = "flex";
+  $("#groupModePanel").style.display = "none";
   $("#modalDocTitle").textContent = "Новый документ";
 
   groups = [];
