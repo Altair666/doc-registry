@@ -203,7 +203,7 @@ function renderGroupCards() {
           </label>
           <span class="group-card-actions">
             <button type="button" class="icon-btn" data-reset="${idx}" title="Сбросить размещение">↺</button>
-            <button type="button" class="icon-btn icon-btn-confirm" data-confirm="${idx}" title="Подтвердить размещение">✓</button>
+            <button type="button" class="icon-btn icon-btn-confirm${isGroupDataFilled(g) ? " ready" : ""}${g.confirmed ? " confirmed" : ""}" data-confirm="${idx}" title="Подтвердить размещение">✓</button>
           </span>
         </div>
         <div class="form-grid group-fields-grid">
@@ -309,9 +309,15 @@ function updateGroupBadgeVisual(idx) {
   const badge = $(`.group-badge[data-badge="${idx}"]`);
   if (!badge) return;
   const g = groups[idx];
-  badge.classList.toggle("filled", isGroupDataFilled(g));
+  const filled = isGroupDataFilled(g);
+  badge.classList.toggle("filled", filled);
   badge.classList.toggle("confirmed", !!g.confirmed);
   badge.textContent = g.doc_type ? buildDocLabel(g) : String(idx + 1);
+  const confirmBtn = $(`[data-confirm="${idx}"]`);
+  if (confirmBtn) {
+    confirmBtn.classList.toggle("ready", filled);
+    confirmBtn.classList.toggle("confirmed", !!g.confirmed);
+  }
 }
 
 /* -------------------------------------------------------------------------
