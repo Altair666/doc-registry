@@ -146,9 +146,9 @@ main { padding: 20px 28px 60px; }
   padding: 8px 6px;
 }
 
-.single-card { cursor: pointer; }
-.single-card-selected { border-color: var(--primary); box-shadow: 0 0 0 2px rgba(47,111,237,0.15); }
-.single-thumb { text-align: center; }
+.single-card { cursor: pointer; transition: border-color 0.1s, box-shadow 0.1s, background 0.1s; }
+.single-card-selected { border-color: var(--primary); background: #eef3ff; box-shadow: 0 0 0 3px rgba(47,111,237,0.35); }
+.single-thumb { text-align: center; width: 150px !important; }
 
 .badge {
   display: inline-block;
@@ -437,8 +437,12 @@ label:has(.file-input-hidden) { cursor: pointer; }
   color: var(--muted);
 }
 .icon-btn:hover { background: #f2f3f5; }
-.icon-btn-confirm { color: #16a34a; border-color: #bbf0cd; }
-.icon-btn-confirm:hover { background: #eafcf1; }
+.icon-btn-confirm { color: var(--muted); border-color: var(--border); }
+.icon-btn-confirm.ready { color: #16a34a; border-color: #16a34a; background: #eafcf1; }
+.icon-btn-confirm.confirmed { background: #16a34a; color: #fff; border-color: #16a34a; }
+.icon-btn-confirm:hover { filter: brightness(0.97); }
+.icon-btn-danger { color: var(--danger); border-color: var(--border); }
+.icon-btn-danger:hover { background: #fde8e8; border-color: #f3b8b8; }
 
 .group-pdf-panel {
   flex: 1;
