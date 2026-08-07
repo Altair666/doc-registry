@@ -80,7 +80,7 @@ $$("#modeToggle .mode-toggle-btn").forEach((btn) => {
     $("#singleTopbarExtra").style.display = mode === "single" ? "flex" : "none";
     $("#singleModeWrap").style.display = mode === "single" ? "flex" : "none";
     $("#groupModePanel").style.display = mode === "group" ? "flex" : "none";
-    $("#modalDocTitle").textContent = mode === "group" ? "Новый документ — группа" : "Новый документ";
+    $("#modalDocTitle").textContent = mode === "group" ? "Новый документ — разбить PDF" : "Новый документ";
     if (mode === "group") {
       await ensureGroupVendorLoaded();
     }
@@ -107,7 +107,6 @@ function resetGroupModeUI() {
 
   $("#groupFile").value = "";
   $("#groupFileName").textContent = "Файл не выбран";
-  $("#groupPdfHint").style.display = "block";
   $("#groupPdfPages").innerHTML = "";
   $("#groupPdfPages").style.setProperty("--pdf-page-scale", "100%");
   $("#groupZoom").value = 100;
@@ -116,6 +115,7 @@ function resetGroupModeUI() {
   $("#btnShowHiddenPages").classList.remove("btn-primary");
   $("#btnShowHiddenPages").classList.add("btn-secondary");
   $("#groupCountInput").value = 1;
+  updateGroupDropZoneVisibility();
 
   setGroupCount(1);
 }
@@ -399,8 +399,36 @@ async function resetGroupPlacement(idx) {
    PDF: загрузка, рендер превью страниц, drag&drop
    ------------------------------------------------------------------------- */
 
-$("#groupFile").addEventListener("change", async () => {
-  const file = $("#groupFile").files[0];
+function updateGroupDropZoneVisibility() {
+  $("#groupDropZoneInner").style.display = groupPdfDoc ? "none" : "flex";
+}
+
+$("#groupFile").addEventListener("change", () => processGroupFile($("#groupFile").files[0]));
+
+$("#btnGroupPickCenter").addEventListener("click", async (e) => {
+  e.stopPropagation();
+  await ensureGroupVendorLoaded();
+  $("#groupFile").click();
+});
+
+const groupDropZone = $("#groupDropZone");
+groupDropZone.addEventListener("dragover", (e) => {
+  e.preventDefault();
+  $("#groupDropZoneInner").classList.add("drop-active");
+});
+groupDropZone.addEventListener("dragleave", (e) => {
+  if (e.target === groupDropZone || e.target === $("#groupDropZoneInner")) {
+    $("#groupDropZoneInner").classList.remove("drop-active");
+  }
+});
+groupDropZone.addEventListener("drop", (e) => {
+  e.preventDefault();
+  $("#groupDropZoneInner").classList.remove("drop-active");
+  const file = e.dataTransfer.files && e.dataTransfer.files[0];
+  if (file) processGroupFile(file);
+});
+
+async function processGroupFile(file) {
   if (!file) return;
   $("#groupFileName").textContent = file.name;
   await ensureGroupVendorLoaded();
@@ -426,11 +454,11 @@ $("#groupFile").addEventListener("change", async () => {
   groupTotalPages = groupPdfDoc.numPages;
   for (let p = 1; p <= groupTotalPages; p++) pageStates[p] = { rotation: 0, deleted: false };
 
-  $("#groupPdfHint").style.display = "none";
+  updateGroupDropZoneVisibility();
   await renderGroupPdfPages();
   renderGroupCards();
   updateGroupSaveButtonState();
-});
+}
 
 let groupPdfRenderToken = 0;
 
