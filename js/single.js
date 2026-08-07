@@ -169,7 +169,7 @@ function renderSingleCards() {
           <span class="group-badge" style="background:${it.color}" title="${escapeHtml(it.file.name)}">${badgeLabel}</span>
           <span class="group-card-actions">
             <button type="button" class="icon-btn icon-btn-danger" data-single-delete="${idx}" title="Удалить документ вместе с файлом">✕</button>
-            <span class="icon-btn single-status${filled ? " ready" : ""}" title="${filled ? "Заполнено" : "Заполните вид и номер"}">✓</span>
+            <span class="single-status${filled ? " ready" : ""}" title="${filled ? "Заполнено" : "Заполните вид и номер"}">✓</span>
           </span>
         </div>
         <div class="form-grid group-fields-grid">
