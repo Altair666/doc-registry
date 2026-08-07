@@ -8,7 +8,7 @@
    возможностью повернуть/удалить отдельные страницы.
    ========================================================================== */
 
-let singleItems = []; // { id, file, color, doc_type, number, doc_date, counterparty, amount, comment, confirmed, pdfDoc, numPages, previewFailed, pageRotations, deletedPages }
+let singleItems = []; // { id, file, color, doc_type, number, doc_date, counterparty, amount, comment, pdfDoc, numPages, previewFailed, pageRotations, deletedPages }
 let singleSelectedIdx = null; // какая карточка выбрана (её файл показан справа), null = галерея всех
 let singleNextId = 1;
 let singlePreviewToken = 0;
@@ -87,7 +87,6 @@ async function processSingleFiles(fileList) {
       counterparty: "",
       amount: "",
       comment: "",
-      confirmed: false,
       pdfDoc: null,
       numPages: null,
       previewFailed: false,
@@ -165,13 +164,12 @@ function renderSingleCards() {
       const filled = isGroupDataFilled(it);
 
       return `
-      <div class="group-card single-card${singleSelectedIdx === idx ? " single-card-selected" : ""}" data-single="${idx}">
+      <div class="group-card single-card${filled ? " single-card-filled" : ""}${singleSelectedIdx === idx ? " single-card-selected" : ""}" data-single="${idx}">
         <div class="group-card-header">
-          <span class="group-badge${filled ? " filled" : ""}${it.confirmed ? " confirmed" : ""}"
-                style="background:${it.color}" title="${escapeHtml(it.file.name)}">${badgeLabel}</span>
+          <span class="group-badge" style="background:${it.color}" title="${escapeHtml(it.file.name)}">${badgeLabel}</span>
           <span class="group-card-actions">
-            <button type="button" class="icon-btn icon-btn-confirm${filled ? " ready" : ""}${it.confirmed ? " confirmed" : ""}" data-single-confirm="${idx}" title="Подтвердить">✓</button>
             <button type="button" class="icon-btn icon-btn-danger" data-single-delete="${idx}" title="Удалить документ вместе с файлом">✕</button>
+            <span class="icon-btn single-status${filled ? " ready" : ""}" title="${filled ? "Заполнено" : "Заполните вид и номер"}">✓</span>
           </span>
         </div>
         <div class="form-grid group-fields-grid">
@@ -237,16 +235,6 @@ function wireSingleCardEvents() {
     });
   });
 
-  list.querySelectorAll("[data-single-confirm]").forEach((btn) => {
-    btn.addEventListener("click", (e) => {
-      e.stopPropagation();
-      const idx = Number(btn.dataset.singleConfirm);
-      singleItems[idx].confirmed = !singleItems[idx].confirmed;
-      updateSingleBadge(idx);
-      updateSingleSaveButtonState();
-    });
-  });
-
   list.querySelectorAll("[data-single-delete]").forEach((btn) => {
     btn.addEventListener("click", (e) => {
       e.stopPropagation();
@@ -283,20 +271,20 @@ function updateSingleBadge(idx) {
   if (!card) return;
   const it = singleItems[idx];
   const filled = isGroupDataFilled(it);
+  card.classList.toggle("single-card-filled", filled);
   const badge = card.querySelector(".group-badge");
-  badge.classList.toggle("filled", filled);
-  badge.classList.toggle("confirmed", !!it.confirmed);
   badge.textContent = it.doc_type ? buildDocLabel(it) : it.file.name;
-  const confirmBtn = card.querySelector("[data-single-confirm]");
-  confirmBtn.classList.toggle("ready", filled);
-  confirmBtn.classList.toggle("confirmed", !!it.confirmed);
+  const status = card.querySelector(".single-status");
+  status.classList.toggle("ready", filled);
+  status.title = filled ? "Заполнено" : "Заполните вид и номер";
 }
 
-/** Кнопка «Добавить документы» активна только когда ВСЕ карточки
-    подтверждены (галочка зелёная) и полностью заполнены. */
+/** Кнопка «Добавить документы» активна, когда хотя бы одна карточка
+    заполнена (вид + номер) — подтверждать отдельно не нужно, статус
+    считается автоматически. */
 function updateSingleSaveButtonState() {
-  const allReady = singleItems.length > 0 && singleItems.every((it) => it.confirmed && isGroupDataFilled(it));
-  $("#btnDocSave").disabled = !allReady;
+  const anyReady = singleItems.some((it) => isGroupDataFilled(it));
+  $("#btnDocSave").disabled = !anyReady;
 }
 
 /* -------------------------------------------------------------------------
@@ -494,8 +482,12 @@ async function buildFinalFileForItem(it) {
 }
 
 $("#btnDocSave").addEventListener("click", async () => {
-  const ready = singleItems.filter((it) => it.confirmed && isGroupDataFilled(it));
+  const ready = singleItems.filter((it) => isGroupDataFilled(it));
+  const skipped = singleItems.length - ready.length;
   if (!ready.length) return;
+  if (skipped > 0 && !confirm(`${ready.length} файл(ов) готово к добавлению, ${skipped} будет пропущено (не заполнены вид и номер документа). Продолжить?`)) {
+    return;
+  }
 
   const firstStage = orderedStages()[0];
   if (!firstStage) {
