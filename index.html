@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Реестр учёта первичных документов</title>
-<link rel="stylesheet" href="css/style.css?v=4.5.0">
+<link rel="stylesheet" href="css/style.css?v=4.6.0">
 </head>
 <body>
 
@@ -82,12 +82,9 @@
             <input type="number" id="singleCountInput" value="0" disabled>
           </span>
         </label>
-        <label class="file-picker" style="margin-left:auto">
-          <span class="btn btn-secondary btn-small file-btn-visual">Выбрать файлы</span>
-          <span id="fFileName" class="muted">Файлы не выбраны</span>
-          <input type="file" id="fFile" class="file-input-hidden" multiple>
-        </label>
-        <button type="button" class="btn btn-secondary" id="btnDocCancel">Отмена</button>
+        <input type="file" id="fFile" class="file-input-hidden" multiple>
+        <span id="fFileName" class="muted" style="display:none"></span>
+        <button type="button" class="btn btn-secondary" id="btnDocCancel" style="margin-left:auto">Отмена</button>
         <button type="button" class="btn btn-primary" id="btnDocSave" disabled>Добавить документы</button>
       </div>
 
@@ -101,12 +98,9 @@
             </span>
           </span>
         </label>
-        <label class="file-picker" style="margin-left:auto">
-          <span class="btn btn-secondary btn-small file-btn-visual">Выбрать файл</span>
-          <span id="groupFileName" class="muted">Файл не выбран</span>
-          <input type="file" id="groupFile" accept="application/pdf" class="file-input-hidden">
-        </label>
-        <button type="button" class="btn btn-secondary" id="btnGroupCancel">Отмена</button>
+        <input type="file" id="groupFile" accept="application/pdf" class="file-input-hidden">
+        <span id="groupFileName" class="muted" style="display:none"></span>
+        <button type="button" class="btn btn-secondary" id="btnGroupCancel" style="margin-left:auto">Отмена</button>
         <button type="button" class="btn btn-primary" id="btnGroupSave" disabled>Добавить документы</button>
       </div>
     </div>
@@ -256,11 +250,11 @@
   </div>
 </div>
 
-<script src="js/version.js?v=4.5.0"></script>
-<script src="js/config.js?v=4.5.0"></script>
-<script src="js/storage.js?v=4.5.0"></script>
-<script src="js/app.js?v=4.5.0"></script>
-<script src="js/group.js?v=4.5.0"></script>
-<script src="js/single.js?v=4.5.0"></script>
+<script src="js/version.js?v=4.6.0"></script>
+<script src="js/config.js?v=4.6.0"></script>
+<script src="js/storage.js?v=4.6.0"></script>
+<script src="js/app.js?v=4.6.0"></script>
+<script src="js/group.js?v=4.6.0"></script>
+<script src="js/single.js?v=4.6.0"></script>
 </body>
 </html>
