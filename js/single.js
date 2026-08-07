@@ -27,6 +27,11 @@ function resetSingleModeUI() {
   renderSingleCards();
   renderSinglePreview();
   updateSingleSaveButtonState();
+  updateSingleDropZoneVisibility();
+}
+
+function updateSingleDropZoneVisibility() {
+  $("#singleDropZoneInner").style.display = singleItems.length === 0 ? "flex" : "none";
 }
 
 $("#singleZoom").addEventListener("input", () => {
@@ -36,11 +41,37 @@ $("#singleZoom").addEventListener("input", () => {
 });
 
 /* -------------------------------------------------------------------------
-   Выбор файлов
+   Выбор файлов: через верхнюю кнопку, центральную кнопку в пустой
+   области или перетаскиванием файлов прямо на неё.
    ------------------------------------------------------------------------- */
 
-$("#fFile").addEventListener("change", async () => {
-  const files = Array.from($("#fFile").files || []);
+$("#fFile").addEventListener("change", () => processSingleFiles($("#fFile").files));
+
+$("#btnSinglePickCenter").addEventListener("click", (e) => {
+  e.stopPropagation();
+  $("#fFile").click();
+});
+
+const singleDropZone = $("#singleDropZone");
+singleDropZone.addEventListener("dragover", (e) => {
+  e.preventDefault();
+  $("#singleDropZoneInner").classList.add("drop-active");
+});
+singleDropZone.addEventListener("dragleave", (e) => {
+  if (e.target === singleDropZone || e.target === $("#singleDropZoneInner")) {
+    $("#singleDropZoneInner").classList.remove("drop-active");
+  }
+});
+singleDropZone.addEventListener("drop", (e) => {
+  e.preventDefault();
+  $("#singleDropZoneInner").classList.remove("drop-active");
+  if (e.dataTransfer.files && e.dataTransfer.files.length) {
+    processSingleFiles(e.dataTransfer.files);
+  }
+});
+
+async function processSingleFiles(fileList) {
+  const files = Array.from(fileList || []);
   if (!files.length) return;
   await ensureGroupVendorLoaded(); // тот же pdf.js/pdf-lib, что и в групповом режиме
 
@@ -68,11 +99,13 @@ $("#fFile").addEventListener("change", async () => {
 
   $("#fFileName").textContent = files.length === 1 ? files[0].name : `${files.length} файлов`;
   $("#singleCountInput").value = singleItems.length;
+  updateSingleDropZoneVisibility();
 
   renderSingleCards();
+
   await renderSinglePreview();
   updateSingleSaveButtonState();
-});
+}
 
 /** Пробует по имени файла угадать дату, номер и вид документа — чтобы
     пользователю не нужно было вбивать всё руками, если файл изначально
@@ -238,6 +271,7 @@ function deleteSingleItem(idx) {
   $("#singleCountInput").value = singleItems.length;
   $("#fFileName").textContent =
     singleItems.length === 0 ? "Файлы не выбраны" : singleItems.length === 1 ? singleItems[0].file.name : `${singleItems.length} файлов`;
+  updateSingleDropZoneVisibility();
 
   renderSingleCards();
   renderSinglePreview();
@@ -298,7 +332,6 @@ async function renderSinglePreview() {
   const scrollWrap = area.closest(".group-pdf-pages-scroll");
   const savedScrollTop = scrollWrap ? scrollWrap.scrollTop : 0;
   area.innerHTML = "";
-  $("#singlePreviewHint").style.display = singleItems.length ? "none" : "block";
 
   if (singleSelectedIdx == null) {
     $("#singlePreviewLabel").textContent = singleItems.length ? "Превью загруженных файлов" : "Превью появится здесь";
