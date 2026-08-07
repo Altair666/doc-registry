@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Реестр учёта первичных документов</title>
-<link rel="stylesheet" href="css/style.css?v=4.1.0">
+<link rel="stylesheet" href="css/style.css?v=4.2.0">
 </head>
 <body>
 
@@ -71,8 +71,8 @@
   <div class="modal modal-doc-fullscreen" id="modalDocInner">
     <div class="doc-modal-topbar">
       <div class="mode-toggle" id="modeToggle">
-        <button type="button" class="mode-toggle-btn active" data-mode="single">Один документ</button>
-        <button type="button" class="mode-toggle-btn" data-mode="group">Группа документов</button>
+        <button type="button" class="mode-toggle-btn active" data-mode="single">Отдельные файлы</button>
+        <button type="button" class="mode-toggle-btn" data-mode="group">Разбить PDF на документы</button>
       </div>
       <h2 id="modalDocTitle" class="doc-modal-title">Новый документ</h2>
 
@@ -123,8 +123,12 @@
               <span id="singleZoomValue" class="muted">70%</span>
             </span>
           </div>
-          <p class="muted" id="singlePreviewHint">Выберите файлы (можно сразу несколько) — они появятся здесь и слева в виде карточек.</p>
-          <div class="group-pdf-pages-scroll">
+          <div class="group-pdf-pages-scroll" id="singleDropZone">
+            <div class="pdf-drop-zone" id="singleDropZoneInner">
+              <p class="pdf-drop-zone-title">Перетащите файлы сюда</p>
+              <button type="button" class="btn btn-primary" id="btnSinglePickCenter">Выбрать файлы</button>
+              <p class="muted">или перетащите PDF/файлы прямо на эту область</p>
+            </div>
             <div id="singlePreviewArea" class="group-pdf-pages"></div>
           </div>
         </div>
@@ -145,8 +149,12 @@
             </span>
             <button type="button" class="btn btn-secondary btn-small" id="btnShowHiddenPages" style="margin-left:auto">Показать скрытые страницы</button>
           </div>
-          <p class="muted" id="groupPdfHint">Прикрепите PDF справа сверху, чтобы разместить страницы по группам.</p>
-          <div class="group-pdf-pages-scroll">
+          <div class="group-pdf-pages-scroll" id="groupDropZone">
+            <div class="pdf-drop-zone" id="groupDropZoneInner">
+              <p class="pdf-drop-zone-title">Перетащите PDF сюда</p>
+              <button type="button" class="btn btn-primary" id="btnGroupPickCenter">Выбрать PDF</button>
+              <p class="muted">или перетащите файл прямо на эту область</p>
+            </div>
             <div id="groupPdfPages" class="group-pdf-pages"></div>
           </div>
         </div>
@@ -248,11 +256,11 @@
   </div>
 </div>
 
-<script src="js/version.js?v=4.1.0"></script>
-<script src="js/config.js?v=4.1.0"></script>
-<script src="js/storage.js?v=4.1.0"></script>
-<script src="js/app.js?v=4.1.0"></script>
-<script src="js/group.js?v=4.1.0"></script>
-<script src="js/single.js?v=4.1.0"></script>
+<script src="js/version.js?v=4.2.0"></script>
+<script src="js/config.js?v=4.2.0"></script>
+<script src="js/storage.js?v=4.2.0"></script>
+<script src="js/app.js?v=4.2.0"></script>
+<script src="js/group.js?v=4.2.0"></script>
+<script src="js/single.js?v=4.2.0"></script>
 </body>
 </html>
