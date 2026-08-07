@@ -734,3 +734,304 @@ $("#btnGroupSave").addEventListener("click", async () => {
   $("#modalDoc").classList.remove("open");
   renderTable();
 });
+
+/* ==========================================================================
+   Режим "Отдельные файлы" — можно перетащить/выбрать сразу несколько
+   файлов, каждый становится своим блоком с собственными полями (вид,
+   номер, дата, контрагент, сумма, комментарий) и своим документом при
+   сохранении. В отличие от "Разбить PDF на документы" здесь нет
+   разбиения одного файла на страницы — каждый файл целиком становится
+   вложением одного документа.
+   ========================================================================== */
+
+let singleFiles = []; // { id, file, doc_type, number, doc_date, counterparty, amount, comment }
+let singleFileIdSeq = 0;
+let singlePdfRenderToken = 0;
+
+function isSingleEntryFilled(entry) {
+  return !!entry.doc_type && !!(entry.number && entry.number.trim());
+}
+
+function updateSingleDropZoneVisibility() {
+  $("#singleDropZoneInner").style.display = singleFiles.length ? "none" : "flex";
+}
+
+/** Сбрасывает режим "Отдельные файлы" к пустому состоянию — вызывается
+    при каждом открытии окна «Новый документ» (см. app.js, btnAdd). */
+function resetSingleModeUI() {
+  singleFiles = [];
+  $("#fFile").value = "";
+  $("#fFileName").textContent = "Файлы не выбраны";
+  $("#singleCountInput").value = 0;
+  $("#singleCardsList").innerHTML = "";
+  $("#singlePreviewArea").innerHTML = "";
+  $("#singlePreviewArea").style.setProperty("--pdf-page-scale", "70%");
+  $("#singleZoom").value = 70;
+  $("#singleZoomValue").textContent = "70%";
+  updateSingleDropZoneVisibility();
+  updateSingleSaveButtonState();
+}
+
+$("#singleZoom").addEventListener("input", () => {
+  const val = $("#singleZoom").value;
+  $("#singleZoomValue").textContent = val + "%";
+  $("#singlePreviewArea").style.setProperty("--pdf-page-scale", val + "%");
+});
+
+$("#fFile").addEventListener("change", () => {
+  processSingleFiles($("#fFile").files);
+  $("#fFile").value = ""; // чтобы можно было повторно выбрать те же файлы
+});
+
+$("#btnSinglePickCenter").addEventListener("click", (e) => {
+  e.stopPropagation();
+  $("#fFile").click();
+});
+
+const singleDropZone = $("#singleDropZone");
+singleDropZone.addEventListener("dragover", (e) => {
+  e.preventDefault();
+  $("#singleDropZoneInner").classList.add("drop-active");
+});
+singleDropZone.addEventListener("dragleave", (e) => {
+  if (e.target === singleDropZone || e.target === $("#singleDropZoneInner")) {
+    $("#singleDropZoneInner").classList.remove("drop-active");
+  }
+});
+singleDropZone.addEventListener("drop", (e) => {
+  e.preventDefault();
+  $("#singleDropZoneInner").classList.remove("drop-active");
+  if (e.dataTransfer.files && e.dataTransfer.files.length) {
+    processSingleFiles(e.dataTransfer.files);
+  }
+});
+
+/** Добавляет ВСЕ переданные файлы как отдельные блоки (в отличие от
+    группового режима, где из перетащенных файлов берётся только первый). */
+async function processSingleFiles(fileList) {
+  const files = Array.from(fileList || []);
+  if (!files.length) return;
+  files.forEach((file) => {
+    singleFiles.push({
+      id: ++singleFileIdSeq,
+      file,
+      doc_type: "",
+      number: "",
+      doc_date: todayIso(),
+      counterparty: "",
+      amount: "",
+      comment: "",
+    });
+  });
+  $("#fFileName").textContent = singleFiles.length + " файл(ов) выбрано";
+  $("#singleCountInput").value = singleFiles.length;
+  updateSingleDropZoneVisibility();
+  renderSingleCards();
+  updateSingleSaveButtonState();
+  await renderSinglePreviews();
+}
+
+function renderSingleCards() {
+  const list = $("#singleCardsList");
+  list.innerHTML = singleFiles
+    .map((entry, idx) => {
+      const typeOptions =
+        `<option value="" ${entry.doc_type ? "" : "selected"}>— выбрать —</option>` +
+        config.docTypes.map((t) => `<option value="${escapeHtml(t)}" ${t === entry.doc_type ? "selected" : ""}>${escapeHtml(t)}</option>`).join("");
+      const cpOptions =
+        `<option value="" ${entry.counterparty ? "" : "selected"}>—</option>` +
+        config.counterparties.map((c) => `<option value="${escapeHtml(c)}" ${c === entry.counterparty ? "selected" : ""}>${escapeHtml(c)}</option>`).join("");
+      return `
+      <div class="group-card${isSingleEntryFilled(entry) ? " group-card-filled" : ""}" data-single="${idx}">
+        <div class="group-card-header">
+          <span class="single-card-filename" title="${escapeHtml(entry.file.name)}">${escapeHtml(entry.file.name)}</span>
+          <span class="group-card-actions">
+            <button type="button" class="icon-btn pdf-page-btn-danger" data-single-remove="${idx}" title="Убрать файл">✕</button>
+          </span>
+        </div>
+        <div class="form-grid group-fields-grid">
+          <label class="f-type compact">Вид документа
+            <span class="group-field-with-add">
+              <select data-single-field="doc_type" data-single-idx="${idx}">${typeOptions}</select>
+              <button type="button" class="icon-btn" data-single-add-type="${idx}" title="Добавить новый вид">+</button>
+            </span>
+          </label>
+          <label class="f-date compact">Дата <input type="date" data-single-field="doc_date" data-single-idx="${idx}" value="${entry.doc_date || ""}"></label>
+          <label class="f-number">Номер документа <input type="text" data-single-field="number" data-single-idx="${idx}" value="${escapeHtml(entry.number)}"></label>
+          <label class="f-cp">Контрагент
+            <span class="group-field-with-add">
+              <select data-single-field="counterparty" data-single-idx="${idx}">${cpOptions}</select>
+              <button type="button" class="icon-btn" data-single-add-cp="${idx}" title="Добавить нового контрагента">+</button>
+            </span>
+          </label>
+          <label class="f-amount">Сумма <input type="text" data-single-field="amount" data-single-idx="${idx}" value="${escapeHtml(entry.amount)}"></label>
+          <label class="f-comment full">Комментарий <textarea rows="1" data-single-field="comment" data-single-idx="${idx}">${escapeHtml(entry.comment)}</textarea></label>
+        </div>
+      </div>`;
+    })
+    .join("");
+
+  wireSingleCardEvents();
+}
+
+function wireSingleCardEvents() {
+  const list = $("#singleCardsList");
+
+  list.querySelectorAll("[data-single-field]").forEach((el) => {
+    const evt = el.tagName === "SELECT" || el.type === "date" ? "change" : "input";
+    el.addEventListener(evt, () => {
+      const idx = Number(el.dataset.singleIdx);
+      singleFiles[idx][el.dataset.singleField] = el.value;
+      updateSingleCardFilledState(idx);
+      updateSingleSaveButtonState();
+    });
+  });
+
+  list.querySelectorAll("[data-single-add-type]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const idx = Number(btn.dataset.singleAddType);
+      const name = window.prompt("Новый вид документа:");
+      if (!name || !name.trim()) return;
+      addDocType(name);
+      saveConfig();
+      singleFiles[idx].doc_type = name.trim();
+      renderSingleCards();
+      updateSingleSaveButtonState();
+    });
+  });
+  list.querySelectorAll("[data-single-add-cp]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const idx = Number(btn.dataset.singleAddCp);
+      const name = window.prompt("Новый контрагент:");
+      if (!name || !name.trim()) return;
+      const saved = addCounterparty(name);
+      saveConfig();
+      singleFiles[idx].counterparty = saved;
+      renderSingleCards();
+    });
+  });
+
+  list.querySelectorAll("[data-single-remove]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const idx = Number(btn.dataset.singleRemove);
+      singleFiles.splice(idx, 1);
+      $("#singleCountInput").value = singleFiles.length;
+      $("#fFileName").textContent = singleFiles.length ? singleFiles.length + " файл(ов) выбрано" : "Файлы не выбраны";
+      updateSingleDropZoneVisibility();
+      renderSingleCards();
+      renderSinglePreviews();
+      updateSingleSaveButtonState();
+    });
+  });
+}
+
+function updateSingleCardFilledState(idx) {
+  const card = $(`.group-card[data-single="${idx}"]`);
+  if (!card) return;
+  card.classList.toggle("group-card-filled", isSingleEntryFilled(singleFiles[idx]));
+}
+
+/** Превью списка файлов: первая страница для PDF, картинка как есть,
+    иконка-заглушка для прочих типов файлов. */
+async function renderSinglePreviews() {
+  const myToken = ++singlePdfRenderToken;
+  const container = $("#singlePreviewArea");
+  container.innerHTML = "";
+
+  for (let i = 0; i < singleFiles.length; i++) {
+    if (myToken !== singlePdfRenderToken) return;
+    const entry = singleFiles[i];
+    const wrap = document.createElement("div");
+    wrap.className = "pdf-page";
+    wrap.dataset.single = String(i);
+    const label = document.createElement("div");
+    label.className = "pdf-page-label";
+    label.textContent = entry.file.name;
+
+    const isPdf = entry.file.type === "application/pdf" || /\.pdf$/i.test(entry.file.name);
+    const isImage = entry.file.type.startsWith("image/");
+
+    if (isPdf) {
+      const canvas = document.createElement("canvas");
+      wrap.appendChild(canvas);
+      wrap.appendChild(label);
+      container.appendChild(wrap);
+      try {
+        await ensureGroupVendorLoaded();
+        if (myToken !== singlePdfRenderToken) return;
+        const buf = await entry.file.arrayBuffer();
+        const loadingTask = window.pdfjsLib.getDocument({ data: new Uint8Array(buf) });
+        const pdfDoc = await loadingTask.promise;
+        if (myToken !== singlePdfRenderToken) return;
+        const page = await pdfDoc.getPage(1);
+        const baseViewport = page.getViewport({ scale: 1 });
+        const scale = GROUP_PDF_RENDER_WIDTH / baseViewport.width;
+        const viewport = page.getViewport({ scale });
+        canvas.width = viewport.width;
+        canvas.height = viewport.height;
+        await page.render({ canvasContext: canvas.getContext("2d"), viewport }).promise;
+      } catch (e) {
+        label.textContent = entry.file.name + " (превью недоступно)";
+      }
+    } else if (isImage) {
+      try {
+        const img = document.createElement("img");
+        img.src = URL.createObjectURL(entry.file);
+        img.style.width = "100%";
+        img.style.borderRadius = "4px";
+        wrap.appendChild(img);
+        wrap.appendChild(label);
+        container.appendChild(wrap);
+      } catch (e) {
+        wrap.classList.add("pdf-page-generic");
+        wrap.innerHTML = `<div class="pdf-page-generic-icon">🖼️</div>`;
+        wrap.appendChild(label);
+        container.appendChild(wrap);
+      }
+    } else {
+      wrap.classList.add("pdf-page-generic");
+      wrap.innerHTML = `<div class="pdf-page-generic-icon">📄</div>`;
+      wrap.appendChild(label);
+      container.appendChild(wrap);
+    }
+  }
+}
+
+function updateSingleSaveButtonState() {
+  const ready = singleFiles.some((entry) => isSingleEntryFilled(entry));
+  $("#btnDocSave").disabled = !ready;
+}
+
+$("#btnDocSave").addEventListener("click", async () => {
+  const ready = singleFiles.filter((entry) => isSingleEntryFilled(entry));
+  const skipped = singleFiles.length - ready.length;
+  if (!ready.length) return;
+  if (skipped > 0 && !confirm(`${ready.length} файл(ов) готово к добавлению, ${skipped} будет пропущено (не заполнены вид и номер документа). Продолжить?`)) {
+    return;
+  }
+
+  const firstStage = orderedStages()[0];
+  for (const entry of ready) {
+    const ts = nowIso();
+    const doc = {
+      id: state.nextDocId++,
+      doc_type: entry.doc_type,
+      number: entry.number,
+      doc_date: entry.doc_date,
+      counterparty: entry.counterparty,
+      amount: entry.amount,
+      comment: entry.comment,
+      stage_id: firstStage.id,
+      created_at: ts,
+      updated_at: ts,
+      files: [],
+    };
+    state.documents.push(doc);
+    await attachFileToDoc(doc, entry.file, firstStage.id);
+  }
+
+  await saveState();
+  await saveConfig();
+  $("#modalDoc").classList.remove("open");
+  renderTable();
+});
