@@ -367,7 +367,15 @@ label:has(.file-input-hidden) { cursor: pointer; }
 .group-cards-list { flex: 0 0 35%; min-width: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; padding: 6px 6px 6px 3px; }
 
 .group-card { border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px; background: var(--panel); transition: background 0.15s, border-color 0.15s; }
-.group-card.group-card-filled { background: #eafcf1; border-color: #16a34a; }
+.group-card.group-card-filled,
+.group-card.single-card-filled { background: #eafcf1; border-color: #16a34a; }
+
+.single-status {
+  cursor: default;
+  color: var(--muted);
+  border-color: var(--border);
+}
+.single-status.ready { color: #16a34a; border-color: #16a34a; background: #eafcf1; }
 
 .single-card-filename {
   flex: 1;
@@ -434,6 +442,7 @@ label:has(.file-input-hidden) { cursor: pointer; }
   white-space: nowrap;
 }
 .group-badge.filled { opacity: 1; }
+.single-card .group-badge { opacity: 1; cursor: default; }
 .group-badge.confirmed { border-color: #16a34a; box-shadow: 0 0 0 2px rgba(22,163,74,0.25); }
 .group-badge:active { cursor: grabbing; }
 
