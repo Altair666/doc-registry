@@ -466,7 +466,25 @@ label:has(.file-input-hidden) { cursor: pointer; }
   background: #fafbfc;
 }
 #groupPdfHint { padding: 0 12px; margin-top: 10px; }
-.group-pdf-pages-scroll { flex: 1; min-height: 0; overflow-y: auto; padding: 12px; }
+.group-pdf-pages-scroll { flex: 1; min-height: 0; overflow-y: auto; padding: 12px; position: relative; }
+
+.pdf-drop-zone {
+  position: absolute;
+  inset: 12px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  border: 2px dashed var(--border);
+  border-radius: 12px;
+  background: #fafbfc;
+  text-align: center;
+  padding: 20px;
+  transition: border-color 0.15s, background 0.15s;
+}
+.pdf-drop-zone-title { font-size: 15px; font-weight: 600; color: var(--text); margin: 0; }
+.pdf-drop-zone.drop-active { border-color: var(--primary); background: #eef3ff; }
 
 .pdf-zoom-slider-wrap { display: flex; align-items: center; gap: 8px; font-size: 12px; }
 .pdf-zoom-slider-wrap input[type="range"] { flex: 1; max-width: 180px; }
