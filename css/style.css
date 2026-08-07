@@ -371,11 +371,19 @@ label:has(.file-input-hidden) { cursor: pointer; }
 .group-card.single-card-filled { background: #eafcf1; border-color: #16a34a; }
 
 .single-status {
-  cursor: default;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  border: 1px solid var(--border);
+  background: #fff;
+  font-size: 13px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   color: var(--muted);
-  border-color: var(--border);
+  pointer-events: none; /* никакой реакции на наведение/клик — не выглядит кликабельной */
 }
-.single-status.ready { color: #16a34a; border-color: #16a34a; background: #eafcf1; }
+.single-status.ready { background: #16a34a; color: #fff; border-color: #16a34a; }
 
 .single-card-filename {
   flex: 1;
