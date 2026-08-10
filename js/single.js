@@ -495,7 +495,13 @@ $("#btnDocSave").addEventListener("click", async () => {
     return;
   }
 
+  const saveBtn = $("#btnDocSave");
+  const originalLabel = saveBtn.textContent;
+  saveBtn.disabled = true; // серая, пока идёт добавление — не даём нажать повторно
+
+  let added = 0;
   for (const it of ready) {
+    saveBtn.textContent = `Добавление ${added + 1} из ${ready.length}…`;
     const finalFile = await buildFinalFileForItem(it);
     if (!finalFile) continue; // например, все страницы файла оказались удалены
 
@@ -515,10 +521,12 @@ $("#btnDocSave").addEventListener("click", async () => {
     };
     state.documents.push(doc);
     await attachFileToDoc(doc, finalFile, doc.stage_id);
+    added++;
   }
 
   await saveState();
   await saveConfig();
+  saveBtn.textContent = originalLabel;
   $("#modalDoc").classList.remove("open");
   renderTable();
 });
