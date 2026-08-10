@@ -690,11 +690,18 @@ $("#btnGroupSave").addEventListener("click", async () => {
     return;
   }
 
+  const saveBtn = $("#btnGroupSave");
+  const originalLabel = saveBtn.textContent;
+  saveBtn.disabled = true; // серая, пока идёт добавление — не даём нажать повторно
+
   const PDFLib = window.PDFLib;
   const srcPdf = await PDFLib.PDFDocument.load(groupPdfBytesForSplit);
   const firstStage = orderedStages()[0];
 
+  let added = 0;
   for (const g of ready) {
+    saveBtn.textContent = `Добавление ${added + 1} из ${ready.length}…`;
+
     const ts = nowIso();
     const doc = {
       id: state.nextDocId++,
@@ -727,10 +734,12 @@ $("#btnGroupSave").addEventListener("click", async () => {
     const outFile = new File([outBytes], "scan.pdf", { type: "application/pdf" });
 
     await attachFileToDoc(doc, outFile, doc.stage_id);
+    added++;
   }
 
   await saveState();
   await saveConfig();
+  saveBtn.textContent = originalLabel;
   $("#modalDoc").classList.remove("open");
   renderTable();
 });
