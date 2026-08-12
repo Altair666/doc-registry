@@ -377,6 +377,7 @@ label:has(.file-input-hidden) { cursor: pointer; }
 .group-card.group-card-filled,
 .group-card.single-card-filled { background: #eafcf1; border-color: #16a34a; }
 .group-card.single-card-missing-file { background: #fff8e6; border-color: #e0a92a; }
+.group-card.single-card-missing-file.drop-active { border-color: var(--primary); background: #eef3ff; }
 .single-missing-file-hint { font-size: 12px; margin: 4px 0 8px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 
 .single-status {
