@@ -105,6 +105,7 @@ function resetGroupModeUI() {
   pageStates = {};
   showHiddenPages = false;
   pendingGroupDraft = null;
+  groupFileHandle = null;
 
   $("#groupFile").value = "";
   $("#groupFileName").textContent = "Файл не выбран";
@@ -400,16 +401,31 @@ async function resetGroupPlacement(idx) {
    PDF: загрузка, рендер превью страниц, drag&drop
    ------------------------------------------------------------------------- */
 
+let groupFileHandle = null; // "ссылка" на исходный PDF, если браузер её дал (drag-and-drop / showOpenFilePicker)
+
 function updateGroupDropZoneVisibility() {
   $("#groupDropZoneInner").style.display = groupPdfDoc ? "none" : "flex";
 }
 
-$("#groupFile").addEventListener("change", () => processGroupFile($("#groupFile").files[0]));
+$("#groupFile").addEventListener("change", () => processGroupFile($("#groupFile").files[0], null));
 
 $("#btnGroupPickCenter").addEventListener("click", async (e) => {
   e.stopPropagation();
   await ensureGroupVendorLoaded();
-  $("#groupFile").click();
+  if (window.showOpenFilePicker) {
+    try {
+      const [handle] = await window.showOpenFilePicker({
+        multiple: false,
+        types: [{ description: "PDF", accept: { "application/pdf": [".pdf"] } }],
+      });
+      const file = await handle.getFile();
+      await processGroupFile(file, handle);
+    } catch (err) {
+      /* пользователь закрыл диалог — не страшно */
+    }
+  } else {
+    $("#groupFile").click();
+  }
 });
 
 const groupDropZone = $("#groupDropZone");
@@ -422,15 +438,41 @@ groupDropZone.addEventListener("dragleave", (e) => {
     $("#groupDropZoneInner").classList.remove("drop-active");
   }
 });
-groupDropZone.addEventListener("drop", (e) => {
+groupDropZone.addEventListener("drop", async (e) => {
   e.preventDefault();
   $("#groupDropZoneInner").classList.remove("drop-active");
-  const file = e.dataTransfer.files && e.dataTransfer.files[0];
-  if (file) processGroupFile(file);
+  const dt = e.dataTransfer;
+  let handle = null;
+  let file = null;
+  if (dt && dt.items && dt.items.length) {
+    for (const item of dt.items) {
+      if (item.kind !== "file") continue;
+      if (typeof item.getAsFileSystemHandle === "function") {
+        try {
+          const h = await item.getAsFileSystemHandle();
+          if (h && h.kind === "file") {
+            handle = h;
+            file = await h.getFile();
+            break;
+          }
+        } catch (err) {
+          /* не получилось — берём как обычный File ниже */
+        }
+      }
+      if (!file) {
+        const f = item.getAsFile ? item.getAsFile() : null;
+        if (f) file = f;
+      }
+    }
+  } else if (dt && dt.files && dt.files.length) {
+    file = dt.files[0];
+  }
+  if (file) processGroupFile(file, handle);
 });
 
-async function processGroupFile(file) {
+async function processGroupFile(file, handle) {
   if (!file) return;
+  groupFileHandle = handle || null;
   $("#groupFileName").textContent = file.name;
   await ensureGroupVendorLoaded();
 
@@ -775,10 +817,12 @@ $("#btnGroupSave").addEventListener("click", async () => {
    вручную после того, как исходный PDF будет прикреплён снова.
    ------------------------------------------------------------------------- */
 
-function collectGroupDraftSnapshot() {
+async function collectGroupDraftSnapshot() {
   if (!groups.length || !groupPdfBytesForSplit) return null; // без прикреплённого PDF сохранять нечего содержательного
+  await idbSet("draftGroupHandle", groupFileHandle || null);
   return {
     fileName: $("#groupFileName").textContent || null,
+    hasHandle: !!groupFileHandle,
     totalPages: groupTotalPages,
     pageStates: { ...pageStates },
     consumedPages: Array.from(groupConsumedPages),
@@ -805,7 +849,7 @@ let pendingGroupDraft = null;
 /** Восстанавливает поля групп сразу; саму разметку по страницам
     подхватит processGroupFile, когда пользователь заново прикрепит тот
     же исходный PDF (сопоставление по имени файла и числу страниц). */
-function restoreGroupDraftSnapshot(snapshot) {
+async function restoreGroupDraftSnapshot(snapshot) {
   if (!snapshot || !snapshot.groups || !snapshot.groups.length) return;
   groups = snapshot.groups.map((sg, i) => ({
     color: randomGroupColor(i),
@@ -817,13 +861,35 @@ function restoreGroupDraftSnapshot(snapshot) {
     comment: sg.comment || "",
     pagesCount: sg.pagesCount || 1,
     pendingPlacement: null,
-    confirmed: false, // подтверждённое размещение подхватится автоматически при совпадении файла
+    confirmed: false, // подтверждённое размещение подхватится автоматически, если ниже сработает автозагрузка
     assignedPages: null,
   }));
-  pendingGroupDraft = snapshot;
   $("#groupCountInput").value = groups.length;
   renderGroupCards();
   updateGroupSaveButtonState();
+
+  // Готовим "ожидающий" черновик ДО попытки автозагрузки — если ниже
+  // получится тихо переоткрыть PDF по ссылке, processGroupFile сам
+  // найдёт этот pendingGroupDraft и восстановит разметку/подтверждённые
+  // группы, без единого клика пользователя.
+  pendingGroupDraft = snapshot;
+
+  if (snapshot.hasHandle) {
+    try {
+      const handle = await idbGet("draftGroupHandle");
+      if (handle) {
+        const ok = await verifyPermissionSilent(handle);
+        if (ok) {
+          const file = await handle.getFile();
+          await processGroupFile(file, handle);
+          return;
+        }
+      }
+    } catch (e) {
+      /* тихая загрузка не удалась — оставляем pendingGroupDraft для запасного пути ниже */
+    }
+  }
+
   alert(
     `Черновик восстановлен: ${groups.length} групп(ы) с полями. Прикрепите исходный PDF («${snapshot.fileName || "?"}», ${snapshot.totalPages || "?"} стр.) заново — ` +
       `если это тот же файл, разметка по страницам (включая уже подтверждённые группы) подхватится автоматически.`
