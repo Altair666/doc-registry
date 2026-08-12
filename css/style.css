@@ -570,9 +570,12 @@ label:has(.file-input-hidden) { cursor: pointer; }
 
 .pdf-page.pdf-page-deleted { opacity: 0.45; }
 .pdf-page.pdf-page-deleted canvas { filter: grayscale(1); }
+.pdf-page.pdf-page-consumed { opacity: 0.6; }
+.pdf-page.pdf-page-consumed canvas { filter: grayscale(0.5); }
 
 /* Кнопки поворота/удаления сверху справа на каждой странице; поворот слева от удаления */
-.pdf-page-actions { position: absolute; top: 6px; right: 6px; display: flex; gap: 4px; z-index: 3; }
+.pdf-page-actions { position: absolute; top: 6px; right: 6px; display: flex; gap: 4px; z-index: 3; max-width: calc(100% - 12px); }
+.pdf-page-actions .group-badge-mini { max-width: 100%; }
 .pdf-page-btn {
   width: 24px;
   height: 24px;
