@@ -755,11 +755,14 @@ $("#btnGroupSave").addEventListener("click", async () => {
    вручную после того, как исходный PDF будет прикреплён снова.
    ------------------------------------------------------------------------- */
 
-function collectGroupDraftSnapshot() {
+async function collectGroupDraftSnapshot() {
   if (!groups.length || !groupPdfBytesForSplit) return null; // без прикреплённого PDF сохранять нечего содержательного
   return {
     fileName: $("#groupFileName").textContent || null,
+    fileBase64: arrayBufferToBase64(groupPdfBytesForSplit),
     totalPages: groupTotalPages,
+    pageStates: { ...pageStates },
+    consumedPages: Array.from(groupConsumedPages),
     groups: groups.map((g) => ({
       doc_type: g.doc_type,
       number: g.number,
@@ -768,13 +771,61 @@ function collectGroupDraftSnapshot() {
       amount: g.amount,
       comment: g.comment,
       pagesCount: g.pagesCount,
+      confirmed: g.confirmed,
       assignedPages: g.assignedPages || null,
     })),
   };
 }
 
-function restoreGroupDraftSnapshot(snapshot) {
+/** Восстанавливает групповой режим целиком: перезагружает встроенный
+    PDF, все страницы (с поворотами/удалениями) и группы — включая уже
+    подтверждённые размещения, которые остаются подтверждёнными и
+    готовыми к экспорту (страницы для них уже "нарезаны" логически,
+    реальная нарезка через pdf-lib происходит при добавлении, как обычно). */
+async function restoreGroupDraftSnapshot(snapshot) {
   if (!snapshot || !snapshot.groups || !snapshot.groups.length) return;
+
+  if (!snapshot.fileBase64) {
+    // старый формат черновика (без встроенного PDF) — восстанавливаем хотя бы поля
+    groups = snapshot.groups.map((sg, i) => ({
+      color: randomGroupColor(i),
+      doc_type: sg.doc_type || "",
+      number: sg.number || "",
+      doc_date: sg.doc_date || todayIso(),
+      counterparty: sg.counterparty || "",
+      amount: sg.amount || "",
+      comment: sg.comment || "",
+      pagesCount: sg.pagesCount || 1,
+      pendingPlacement: null,
+      confirmed: false,
+      assignedPages: null,
+    }));
+    $("#groupCountInput").value = groups.length;
+    renderGroupCards();
+    updateGroupSaveButtonState();
+    alert(`Черновик восстановлен: ${groups.length} групп(ы) с полями. Прикрепите исходный PDF («${snapshot.fileName || "?"}») заново и разместите страницы.`);
+    return;
+  }
+
+  await ensureGroupVendorLoaded();
+  const buf = base64ToArrayBuffer(snapshot.fileBase64);
+  groupPdfBytesForSplit = buf.slice(0);
+  const renderBytes = new Uint8Array(buf.slice(0));
+
+  const loadingTask = window.pdfjsLib.getDocument({ data: renderBytes });
+  groupPdfDoc = await loadingTask.promise;
+  groupTotalPages = groupPdfDoc.numPages;
+
+  pageStates = {};
+  for (let p = 1; p <= groupTotalPages; p++) {
+    pageStates[p] = (snapshot.pageStates && snapshot.pageStates[p]) || { rotation: 0, deleted: false };
+  }
+  groupConsumedPages = new Set(snapshot.consumedPages || []);
+  showHiddenPages = false;
+  $("#btnShowHiddenPages").textContent = "Показать скрытые страницы";
+  $("#btnShowHiddenPages").classList.remove("btn-primary");
+  $("#btnShowHiddenPages").classList.add("btn-secondary");
+
   groups = snapshot.groups.map((sg, i) => ({
     color: randomGroupColor(i),
     doc_type: sg.doc_type || "",
@@ -785,14 +836,14 @@ function restoreGroupDraftSnapshot(snapshot) {
     comment: sg.comment || "",
     pagesCount: sg.pagesCount || 1,
     pendingPlacement: null,
-    confirmed: false,
-    assignedPages: null,
+    confirmed: !!sg.confirmed,
+    assignedPages: sg.assignedPages || null,
   }));
+
+  $("#groupFileName").textContent = snapshot.fileName || "восстановлено из черновика";
+  updateGroupDropZoneVisibility();
   $("#groupCountInput").value = groups.length;
   renderGroupCards();
+  await renderGroupPdfPages();
   updateGroupSaveButtonState();
-  alert(
-    `Черновик восстановлен: ${groups.length} групп(ы) с сохранёнными полями. ` +
-      `Прикрепите исходный PDF («${snapshot.fileName || "?"}», ${snapshot.totalPages || "?"} стр.) заново и разместите страницы по группам — сама раскладка по страницам в черновике не хранится.`
-  );
 }
