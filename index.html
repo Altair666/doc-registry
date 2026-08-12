@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Реестр учёта первичных документов</title>
-<link rel="stylesheet" href="css/style.css?v=4.7.0">
+<link rel="stylesheet" href="css/style.css?v=4.8.0">
 </head>
 <body>
 
@@ -75,6 +75,8 @@
         <button type="button" class="mode-toggle-btn" data-mode="group">Разбить PDF на документы</button>
       </div>
       <h2 id="modalDocTitle" class="doc-modal-title">Новый документ</h2>
+      <button type="button" class="btn btn-secondary btn-small" id="btnSaveDraft" title="Сохранить текущий прогресс, чтобы продолжить позже">Сохранить черновик</button>
+      <button type="button" class="btn btn-secondary btn-small" id="btnDeleteDraft" style="display:none" title="Удалить сохранённый черновик">Удалить черновик</button>
 
       <div id="singleTopbarExtra" class="group-topbar-extra">
         <label class="group-count-label">Кол-во документов
@@ -83,6 +85,7 @@
           </span>
         </label>
         <input type="file" id="fFile" class="file-input-hidden" multiple>
+        <input type="file" id="singleReattachFile" class="file-input-hidden">
         <span id="fFileName" class="muted" style="display:none"></span>
         <button type="button" class="btn btn-secondary" id="btnDocCancel" style="margin-left:auto">Отмена</button>
         <button type="button" class="btn btn-primary" id="btnDocSave" disabled>Добавить документы</button>
@@ -250,11 +253,11 @@
   </div>
 </div>
 
-<script src="js/version.js?v=4.7.0"></script>
-<script src="js/config.js?v=4.7.0"></script>
-<script src="js/storage.js?v=4.7.0"></script>
-<script src="js/app.js?v=4.7.0"></script>
-<script src="js/group.js?v=4.7.0"></script>
-<script src="js/single.js?v=4.7.0"></script>
+<script src="js/version.js?v=4.8.0"></script>
+<script src="js/config.js?v=4.8.0"></script>
+<script src="js/storage.js?v=4.8.0"></script>
+<script src="js/app.js?v=4.8.0"></script>
+<script src="js/group.js?v=4.8.0"></script>
+<script src="js/single.js?v=4.8.0"></script>
 </body>
 </html>
