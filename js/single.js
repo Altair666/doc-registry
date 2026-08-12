@@ -8,10 +8,18 @@
    возможностью повернуть/удалить отдельные страницы.
    ========================================================================== */
 
-let singleItems = []; // { id, file, color, doc_type, number, doc_date, counterparty, amount, comment, pdfDoc, numPages, previewFailed, pageRotations, deletedPages }
+let singleItems = []; // { id, file, color, doc_type, number, doc_date, counterparty, amount, comment, pdfDoc, numPages, previewFailed, pageRotations, deletedPages, draftFileName, draftFileSize }
 let singleSelectedIdx = null; // какая карточка выбрана (её файл показан справа), null = галерея всех
 let singleNextId = 1;
 let singlePreviewToken = 0;
+let singleReattachTargetIdx = null; // какой карточке докрепляем файл (после восстановления из черновика)
+
+/** Карточка готова к экспорту, только если заполнены нужные поля И
+    прикреплён реальный файл — карточка, восстановленная из черновика,
+    файла ещё не имеет, пока пользователь не прикрепит его заново. */
+function isSingleItemReady(it) {
+  return isGroupDataFilled(it) && !!it.file;
+}
 
 /** Сбрасывает одиночный режим к пустому состоянию — вызывается при
     каждом открытии окна «Новый документ» (см. app.js, btnAdd). */
@@ -46,6 +54,21 @@ $("#singleZoom").addEventListener("input", () => {
    ------------------------------------------------------------------------- */
 
 $("#fFile").addEventListener("change", () => processSingleFiles($("#fFile").files));
+
+$("#singleReattachFile").addEventListener("change", async () => {
+  const file = $("#singleReattachFile").files[0];
+  $("#singleReattachFile").value = "";
+  if (!file || singleReattachTargetIdx == null) return;
+  const it = singleItems[singleReattachTargetIdx];
+  if (!it) return;
+  it.file = file;
+  it.pdfDoc = null;
+  it.previewFailed = false;
+  singleReattachTargetIdx = null;
+  renderSingleCards();
+  if (singleSelectedIdx !== null) await renderSinglePreview();
+  updateSingleSaveButtonState();
+});
 
 $("#btnSinglePickCenter").addEventListener("click", (e) => {
   e.stopPropagation();
@@ -160,18 +183,25 @@ function renderSingleCards() {
       const cpOptions =
         `<option value="" ${!it.counterparty ? "selected" : ""}>—</option>` +
         config.counterparties.map((c) => `<option value="${escapeHtml(c)}" ${c === it.counterparty ? "selected" : ""}>${escapeHtml(c)}</option>`).join("");
-      const badgeLabel = it.doc_type ? escapeHtml(buildDocLabel(it)) : escapeHtml(it.file.name);
-      const filled = isGroupDataFilled(it);
+      const badgeLabel = it.doc_type ? escapeHtml(buildDocLabel(it)) : escapeHtml(it.file ? it.file.name : it.draftFileName || "без файла");
+      const filled = isSingleItemReady(it);
+      const missingFile = !it.file;
 
       return `
-      <div class="group-card single-card${filled ? " single-card-filled" : ""}${singleSelectedIdx === idx ? " single-card-selected" : ""}" data-single="${idx}">
+      <div class="group-card single-card${filled ? " single-card-filled" : ""}${missingFile ? " single-card-missing-file" : ""}${singleSelectedIdx === idx ? " single-card-selected" : ""}" data-single="${idx}">
         <div class="group-card-header">
-          <span class="group-badge" style="background:${it.color}" title="${escapeHtml(it.file.name)}">${badgeLabel}</span>
+          <span class="group-badge" style="background:${it.color}" title="${escapeHtml(it.file ? it.file.name : it.draftFileName || "")}">${badgeLabel}</span>
           <span class="group-card-actions">
             <button type="button" class="icon-btn icon-btn-danger" data-single-delete="${idx}" title="Удалить документ вместе с файлом">✕</button>
-            <span class="single-status${filled ? " ready" : ""}" title="${filled ? "Заполнено" : "Заполните вид и номер"}">✓</span>
+            <span class="single-status${filled ? " ready" : ""}" title="${filled ? "Заполнено" : missingFile ? "Прикрепите файл" : "Заполните вид и номер"}">✓</span>
           </span>
         </div>
+        ${
+          missingFile
+            ? `<p class="muted single-missing-file-hint">Из черновика: файл «${escapeHtml(it.draftFileName || "?")}» нужно прикрепить заново —
+                 <button type="button" class="btn btn-secondary btn-small" data-single-attach="${idx}">Прикрепить файл</button></p>`
+            : ""
+        }
         <div class="form-grid group-fields-grid">
           <label class="f-type compact">Вид документа
             <span class="group-field-with-add">
@@ -199,6 +229,14 @@ function renderSingleCards() {
 
 function wireSingleCardEvents() {
   const list = $("#singleCardsList");
+
+  list.querySelectorAll("[data-single-attach]").forEach((btn) => {
+    btn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      singleReattachTargetIdx = Number(btn.dataset.singleAttach);
+      $("#singleReattachFile").click();
+    });
+  });
 
   list.querySelectorAll("[data-single-field]").forEach((el) => {
     const evt = el.tagName === "SELECT" || el.type === "date" ? "change" : "input";
@@ -270,20 +308,20 @@ function updateSingleBadge(idx) {
   const card = $(`.single-card[data-single="${idx}"]`);
   if (!card) return;
   const it = singleItems[idx];
-  const filled = isGroupDataFilled(it);
+  const filled = isSingleItemReady(it);
   card.classList.toggle("single-card-filled", filled);
   const badge = card.querySelector(".group-badge");
-  badge.textContent = it.doc_type ? buildDocLabel(it) : it.file.name;
+  badge.textContent = it.doc_type ? buildDocLabel(it) : it.file ? it.file.name : it.draftFileName || "без файла";
   const status = card.querySelector(".single-status");
   status.classList.toggle("ready", filled);
-  status.title = filled ? "Заполнено" : "Заполните вид и номер";
+  status.title = filled ? "Заполнено" : !it.file ? "Прикрепите файл" : "Заполните вид и номер";
 }
 
 /** Кнопка «Добавить документы» активна, когда хотя бы одна карточка
     заполнена (вид + номер) — подтверждать отдельно не нужно, статус
     считается автоматически. */
 function updateSingleSaveButtonState() {
-  const anyReady = singleItems.some((it) => isGroupDataFilled(it));
+  const anyReady = singleItems.some((it) => isSingleItemReady(it));
   $("#btnDocSave").disabled = !anyReady;
 }
 
@@ -333,7 +371,15 @@ async function renderSinglePreview() {
   }
 
   const it = singleItems[singleSelectedIdx];
-  $("#singlePreviewLabel").textContent = it.file.name;
+  $("#singlePreviewLabel").textContent = it.file ? it.file.name : `${it.draftFileName || "без файла"} (из черновика)`;
+
+  if (!it.file) {
+    const wrap = document.createElement("div");
+    wrap.className = "pdf-page";
+    wrap.innerHTML = `<div class="pdf-page-label">${escapeHtml(it.draftFileName || "Файл не прикреплён")}</div><p class="muted" style="padding:16px 4px">Это карточка из черновика — прикрепите исходный файл заново кнопкой «Прикрепить файл» на карточке слева, тогда появится превью.</p>`;
+    area.appendChild(wrap);
+    return;
+  }
 
   if (!isPdfFile(it.file)) {
     const wrap = document.createElement("div");
@@ -417,9 +463,11 @@ async function buildSingleThumb(i) {
   wrap.appendChild(canvas);
   const label = document.createElement("div");
   label.className = "pdf-page-label";
-  label.textContent = it.file.name;
+  label.textContent = it.file ? it.file.name : `${it.draftFileName || "без файла"} (нужно прикрепить)`;
   wrap.appendChild(label);
   wrap.addEventListener("click", () => selectSingleItem(i));
+
+  if (!it.file) return wrap; // черновик без файла — только подпись, превью нечем строить
 
   if (isPdfFile(it.file)) {
     await ensurePdfLoadedForItem(it);
@@ -482,10 +530,10 @@ async function buildFinalFileForItem(it) {
 }
 
 $("#btnDocSave").addEventListener("click", async () => {
-  const ready = singleItems.filter((it) => isGroupDataFilled(it));
+  const ready = singleItems.filter((it) => isSingleItemReady(it));
   const skipped = singleItems.length - ready.length;
   if (!ready.length) return;
-  if (skipped > 0 && !confirm(`${ready.length} файл(ов) готово к добавлению, ${skipped} будет пропущено (не заполнены вид и номер документа). Продолжить?`)) {
+  if (skipped > 0 && !confirm(`${ready.length} файл(ов) готово к добавлению, ${skipped} будет пропущено (не заполнены вид/номер или не прикреплён файл). Продолжить?`)) {
     return;
   }
 
@@ -526,7 +574,64 @@ $("#btnDocSave").addEventListener("click", async () => {
 
   await saveState();
   await saveConfig();
+  await deleteDraft();
+  currentDraftExists = false;
+  if (typeof updateDraftButtonsUI === "function") updateDraftButtonsUI();
   saveBtn.textContent = originalLabel;
   $("#modalDoc").classList.remove("open");
   renderTable();
 });
+
+/* -------------------------------------------------------------------------
+   Черновик: сохраняет только описательные метаданные карточек (какие поля
+   заполнены, повороты/удалённые страницы) — БЕЗ содержимого самих файлов.
+   При восстановлении карточки создаются без файла, пользователь прикрепляет
+   исходный файл заново кнопкой "Прикрепить файл" на карточке.
+   ------------------------------------------------------------------------- */
+
+function collectSingleDraftSnapshot() {
+  if (!singleItems.length) return null;
+  return {
+    items: singleItems.map((it) => ({
+      fileName: it.file ? it.file.name : it.draftFileName || null,
+      fileSize: it.file ? it.file.size : it.draftFileSize || null,
+      doc_type: it.doc_type,
+      number: it.number,
+      doc_date: it.doc_date,
+      counterparty: it.counterparty,
+      amount: it.amount,
+      comment: it.comment,
+      pageRotations: it.pageRotations || {},
+      deletedPages: it.deletedPages ? Array.from(it.deletedPages) : [],
+    })),
+  };
+}
+
+function restoreSingleDraftSnapshot(snapshot) {
+  if (!snapshot || !snapshot.items || !snapshot.items.length) return;
+  singleItems = snapshot.items.map((it) => ({
+    id: singleNextId++,
+    file: null,
+    draftFileName: it.fileName,
+    draftFileSize: it.fileSize,
+    color: randomGroupColor(singleItems.length),
+    doc_type: it.doc_type || "",
+    number: it.number || "",
+    doc_date: it.doc_date || todayIso(),
+    counterparty: it.counterparty || "",
+    amount: it.amount || "",
+    comment: it.comment || "",
+    pdfDoc: null,
+    numPages: null,
+    previewFailed: false,
+    pageRotations: it.pageRotations || {},
+    deletedPages: new Set(it.deletedPages || []),
+  }));
+  singleSelectedIdx = null;
+  $("#fFileName").textContent = singleItems.length + " файл(ов) из черновика — прикрепите заново";
+  $("#singleCountInput").value = singleItems.length;
+  updateSingleDropZoneVisibility();
+  renderSingleCards();
+  renderSinglePreview();
+  updateSingleSaveButtonState();
+}
