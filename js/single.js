@@ -8,7 +8,7 @@
    возможностью повернуть/удалить отдельные страницы.
    ========================================================================== */
 
-let singleItems = []; // { id, file, color, doc_type, number, doc_date, counterparty, amount, comment, pdfDoc, numPages, previewFailed, pageRotations, deletedPages, draftFileName, draftFileSize }
+let singleItems = []; // { id, file, fileHandle, color, doc_type, number, doc_date, counterparty, amount, comment, pdfDoc, numPages, previewFailed, pageRotations, deletedPages, draftFileName }
 let singleSelectedIdx = null; // какая карточка выбрана (её файл показан справа), null = галерея всех
 let singleNextId = 1;
 let singlePreviewToken = 0;
@@ -16,7 +16,8 @@ let singleReattachTargetIdx = null; // какой карточке докреп�
 
 /** Карточка готова к экспорту, только если заполнены нужные поля И
     прикреплён реальный файл — карточка, восстановленная из черновика,
-    файла ещё не имеет, пока пользователь не прикрепит его заново. */
+    файла ещё не имеет, пока не подгрузится по сохранённой ссылке или
+    пользователь не прикрепит его заново. */
 function isSingleItemReady(it) {
   return isGroupDataFilled(it) && !!it.file;
 }
@@ -50,7 +51,11 @@ $("#singleZoom").addEventListener("input", () => {
 
 /* -------------------------------------------------------------------------
    Выбор файлов: через верхнюю кнопку, центральную кнопку в пустой
-   области или перетаскиванием файлов прямо на неё.
+   области или перетаскиванием файлов прямо на неё. Там, где браузер
+   позволяет (drag-and-drop и showOpenFilePicker), помимо самого File
+   забираем ещё и FileSystemFileHandle — постоянную "ссылку" на файл на
+   диске, которую можно сохранить в черновике и позже переоткрыть без
+   участия пользователя (см. collectSingleDraftSnapshot/restore...).
    ------------------------------------------------------------------------- */
 
 $("#fFile").addEventListener("change", () => processSingleFiles($("#fFile").files));
@@ -62,6 +67,7 @@ $("#singleReattachFile").addEventListener("change", async () => {
   const it = singleItems[singleReattachTargetIdx];
   if (!it) return;
   it.file = file;
+  it.fileHandle = null;
   it.pdfDoc = null;
   it.previewFailed = false;
   singleReattachTargetIdx = null;
@@ -70,9 +76,18 @@ $("#singleReattachFile").addEventListener("change", async () => {
   updateSingleSaveButtonState();
 });
 
-$("#btnSinglePickCenter").addEventListener("click", (e) => {
+$("#btnSinglePickCenter").addEventListener("click", async (e) => {
   e.stopPropagation();
-  $("#fFile").click();
+  if (window.showOpenFilePicker) {
+    try {
+      const handles = await window.showOpenFilePicker({ multiple: true });
+      await processSingleFileHandles(handles);
+    } catch (err) {
+      /* пользователь закрыл диалог — не страшно */
+    }
+  } else {
+    $("#fFile").click();
+  }
 });
 
 const singleDropZone = $("#singleDropZone");
@@ -85,24 +100,76 @@ singleDropZone.addEventListener("dragleave", (e) => {
     $("#singleDropZoneInner").classList.remove("drop-active");
   }
 });
-singleDropZone.addEventListener("drop", (e) => {
+singleDropZone.addEventListener("drop", async (e) => {
   e.preventDefault();
   $("#singleDropZoneInner").classList.remove("drop-active");
-  if (e.dataTransfer.files && e.dataTransfer.files.length) {
-    processSingleFiles(e.dataTransfer.files);
-  }
+  const { handles, files } = await extractDroppedFiles(e.dataTransfer);
+  if (handles.length) await processSingleFileHandles(handles);
+  if (files.length) await processSingleFiles(files);
 });
+
+/** Достаёт из dataTransfer файлы, по возможности как FileSystemFileHandle
+    (тогда до них можно будет добраться по сохранённой ссылке даже после
+    закрытия/переоткрытия), а для тех, для кого это не поддерживается —
+    как обычный File. */
+async function extractDroppedFiles(dataTransfer) {
+  const handles = [];
+  const files = [];
+  if (!dataTransfer) return { handles, files };
+
+  if (dataTransfer.items && dataTransfer.items.length) {
+    for (const item of dataTransfer.items) {
+      if (item.kind !== "file") continue;
+      if (typeof item.getAsFileSystemHandle === "function") {
+        try {
+          const handle = await item.getAsFileSystemHandle();
+          if (handle && handle.kind === "file") {
+            handles.push(handle);
+            continue;
+          }
+        } catch (e) {
+          /* браузер не дал ссылку на этот конкретный файл — берём как обычный File ниже */
+        }
+      }
+      const f = item.getAsFile ? item.getAsFile() : null;
+      if (f) files.push(f);
+    }
+  } else if (dataTransfer.files && dataTransfer.files.length) {
+    files.push(...Array.from(dataTransfer.files));
+  }
+  return { handles, files };
+}
+
+async function processSingleFileHandles(handles) {
+  const pairs = [];
+  for (const handle of handles || []) {
+    try {
+      const file = await handle.getFile();
+      pairs.push({ file, handle });
+    } catch (e) {
+      /* файл недоступен (например, удалён с диска) — пропускаем */
+    }
+  }
+  await ingestSingleFiles(pairs);
+}
 
 async function processSingleFiles(fileList) {
   const files = Array.from(fileList || []);
-  if (!files.length) return;
+  await ingestSingleFiles(files.map((file) => ({ file, handle: null })));
+}
+
+/** Общая точка приёма файлов (с их FileSystemFileHandle или без) — не
+    важно, откуда они пришли: из диалога, перетаскивания или подгружены
+    по сохранённой ссылке из черновика. */
+async function ingestSingleFiles(pairs) {
+  if (!pairs.length) return;
   await ensureGroupVendorLoaded(); // тот же pdf.js/pdf-lib, что и в групповом режиме
 
   const hasPending = singleItems.some((it) => !it.file);
 
   if (!hasPending) {
     // Обычный случай — начинаем набор карточек заново.
-    singleItems = files.map((file, i) => makeFreshSingleItem(file, i));
+    singleItems = pairs.map(({ file, handle }, i) => makeFreshSingleItem(file, handle, i));
   } else {
     // Есть карточки из восстановленного черновика, ожидающие файл.
     // Пробуем сопоставить упавшие файлы с ними по имени — если совпало,
@@ -110,23 +177,24 @@ async function processSingleFiles(fileList) {
     // настройки, как будто он никуда и не терялся. Несовпавшие файлы
     // просто добавляются новыми карточками.
     const leftover = [];
-    files.forEach((file) => {
+    pairs.forEach(({ file, handle }) => {
       const pendingIdx = singleItems.findIndex((it) => !it.file && it.draftFileName === file.name);
       if (pendingIdx !== -1) {
         singleItems[pendingIdx].file = file;
+        singleItems[pendingIdx].fileHandle = handle;
         singleItems[pendingIdx].pdfDoc = null;
         singleItems[pendingIdx].previewFailed = false;
       } else {
-        leftover.push(file);
+        leftover.push({ file, handle });
       }
     });
-    leftover.forEach((file) => {
-      singleItems.push(makeFreshSingleItem(file, singleItems.length));
+    leftover.forEach(({ file, handle }) => {
+      singleItems.push(makeFreshSingleItem(file, handle, singleItems.length));
     });
   }
   singleSelectedIdx = null;
 
-  $("#fFileName").textContent = files.length === 1 ? files[0].name : `${files.length} файлов`;
+  $("#fFileName").textContent = pairs.length === 1 ? pairs[0].file.name : `${pairs.length} файлов`;
   $("#singleCountInput").value = singleItems.length;
   updateSingleDropZoneVisibility();
 
@@ -136,11 +204,12 @@ async function processSingleFiles(fileList) {
   updateSingleSaveButtonState();
 }
 
-function makeFreshSingleItem(file, colorIdx) {
+function makeFreshSingleItem(file, handle, colorIdx) {
   const guess = guessFieldsFromFilename(file.name);
   return {
     id: singleNextId++,
     file,
+    fileHandle: handle || null,
     color: randomGroupColor(colorIdx),
     doc_type: guess.doc_type || "",
     number: guess.number || "",
@@ -225,7 +294,12 @@ function renderSingleCards() {
         </div>
         ${
           missingFile
-            ? `<p class="muted single-missing-file-hint">Из черновика: файл «${escapeHtml(it.draftFileName || "?")}» нужно прикрепить заново —
+            ? `<p class="muted single-missing-file-hint">Из черновика: файл «${escapeHtml(it.draftFileName || "?")}» —
+                 ${
+                   it.fileHandle
+                     ? `<button type="button" class="btn btn-secondary btn-small" data-single-load-link="${idx}">Загрузить по ссылке</button>`
+                     : ""
+                 }
                  <button type="button" class="btn btn-secondary btn-small" data-single-attach="${idx}">Прикрепить файл</button></p>`
             : ""
         }
@@ -265,6 +339,34 @@ function wireSingleCardEvents() {
     });
   });
 
+  list.querySelectorAll("[data-single-load-link]").forEach((btn) => {
+    btn.addEventListener("click", async (e) => {
+      e.stopPropagation();
+      const idx = Number(btn.dataset.singleLoadLink);
+      const it = singleItems[idx];
+      if (!it || !it.fileHandle) return;
+      btn.disabled = true;
+      btn.textContent = "Загрузка…";
+      try {
+        const ok = await verifyPermission(it.fileHandle, false); // прямой клик — можно и с запросом разрешения
+        if (ok) {
+          it.file = await it.fileHandle.getFile();
+          it.pdfDoc = null;
+          it.previewFailed = false;
+          renderSingleCards();
+          if (singleSelectedIdx === idx) await renderSinglePreview();
+          updateSingleSaveButtonState();
+          return;
+        }
+        alert("Доступ к файлу не подтверждён — прикрепите его вручную кнопкой «Прикрепить файл».");
+      } catch (err) {
+        alert("Не удалось загрузить файл по сохранённой ссылке (возможно, он был перемещён/удалён) — прикрепите его вручную.");
+      }
+      btn.disabled = false;
+      btn.textContent = "Загрузить по ссылке";
+    });
+  });
+
   // Карточку без файла (жёлтую, из черновика) можно не только докрепить
   // через диалог, но и перетащить файл прямо на неё.
   list.querySelectorAll(".single-card-missing-file").forEach((card) => {
@@ -278,12 +380,24 @@ function wireSingleCardEvents() {
       e.preventDefault();
       e.stopPropagation();
       card.classList.remove("drop-active");
-      const file = e.dataTransfer.files && e.dataTransfer.files[0];
+      const { handles, files } = await extractDroppedFiles(e.dataTransfer);
+      let file = null;
+      let handle = null;
+      if (handles.length) {
+        handle = handles[0];
+        try {
+          file = await handle.getFile();
+        } catch (err) {
+          handle = null;
+        }
+      }
+      if (!file && files.length) file = files[0];
       if (!file) return;
       const idx = Number(card.dataset.single);
       const it = singleItems[idx];
       if (!it) return;
       it.file = file;
+      it.fileHandle = handle;
       it.pdfDoc = null;
       it.previewFailed = false;
       renderSingleCards();
@@ -643,11 +757,20 @@ $("#btnDocSave").addEventListener("click", async () => {
    исходный файл заново кнопкой "Прикрепить файл" на карточке.
    ------------------------------------------------------------------------- */
 
-function collectSingleDraftSnapshot() {
+async function collectSingleDraftSnapshot() {
   if (!singleItems.length) return null;
-  return {
-    items: singleItems.map((it) => ({
+  const items = [];
+  for (let i = 0; i < singleItems.length; i++) {
+    const it = singleItems[i];
+    const key = "draftSingleHandle:" + i;
+    if (it.fileHandle) {
+      await idbSet(key, it.fileHandle);
+    } else {
+      await idbSet(key, null);
+    }
+    items.push({
       fileName: it.file ? it.file.name : it.draftFileName || null,
+      hasHandle: !!it.fileHandle,
       doc_type: it.doc_type,
       number: it.number,
       doc_date: it.doc_date,
@@ -656,39 +779,69 @@ function collectSingleDraftSnapshot() {
       comment: it.comment,
       pageRotations: it.pageRotations || {},
       deletedPages: it.deletedPages ? Array.from(it.deletedPages) : [],
-    })),
-  };
+    });
+  }
+  return { items };
 }
 
-/** Восстанавливает карточки из черновика — без самих файлов, только
-    поля. Карточка ждёт файл с тем же именем: как только он снова
-    попадёт в processSingleFiles (перетаскиванием или через выбор) —
-    "прикрепится" именно к этой карточке автоматически, подхватив все
-    сохранённые настройки, как будто ничего и не терялось. */
-function restoreSingleDraftSnapshot(snapshot) {
+/** Восстанавливает карточки из черновика. Для каждой, у которой была
+    сохранена "ссылка" на файл (FileSystemFileHandle из drag-and-drop
+    или showOpenFilePicker), сразу пробует тихо (без всплывающего
+    запроса разрешения) переоткрыть файл по этой ссылке — тогда файл
+    подгружается сам, без участия пользователя. Если ссылки не было или
+    разрешение потребовалось подтвердить — карточка остаётся жёлтой,
+    ждущей файл (можно перетащить тот же файл на неё, выбрать заново,
+    или нажать "Загрузить по ссылке", если ссылка есть, но нужно
+    подтверждение). */
+async function restoreSingleDraftSnapshot(snapshot) {
   if (!snapshot || !snapshot.items || !snapshot.items.length) return;
-  singleItems = snapshot.items.map((it) => ({
-    id: singleNextId++,
-    file: null,
-    draftFileName: it.fileName,
-    color: randomGroupColor(singleItems.length),
-    doc_type: it.doc_type || "",
-    number: it.number || "",
-    doc_date: it.doc_date || todayIso(),
-    counterparty: it.counterparty || "",
-    amount: it.amount || "",
-    comment: it.comment || "",
-    pdfDoc: null,
-    numPages: null,
-    previewFailed: false,
-    pageRotations: it.pageRotations || {},
-    deletedPages: new Set(it.deletedPages || []),
-  }));
+  singleItems = [];
+  for (let i = 0; i < snapshot.items.length; i++) {
+    const it = snapshot.items[i];
+    const item = {
+      id: singleNextId++,
+      file: null,
+      fileHandle: null,
+      draftFileName: it.fileName,
+      color: randomGroupColor(i),
+      doc_type: it.doc_type || "",
+      number: it.number || "",
+      doc_date: it.doc_date || todayIso(),
+      counterparty: it.counterparty || "",
+      amount: it.amount || "",
+      comment: it.comment || "",
+      pdfDoc: null,
+      numPages: null,
+      previewFailed: false,
+      pageRotations: it.pageRotations || {},
+      deletedPages: new Set(it.deletedPages || []),
+    };
+    singleItems.push(item);
+
+    if (it.hasHandle) {
+      try {
+        const handle = await idbGet("draftSingleHandle:" + i);
+        if (handle) {
+          item.fileHandle = handle;
+          const ok = await verifyPermissionSilent(handle);
+          if (ok) {
+            item.file = await handle.getFile();
+          }
+        }
+      } catch (e) {
+        /* ссылка недоступна (например, файл переместили/удалили) — карточка просто останется жёлтой */
+      }
+    }
+  }
   singleSelectedIdx = null;
-  $("#fFileName").textContent = singleItems.length + " файл(ов) из черновика — прикрепите их заново (перетащите/выберите те же файлы)";
+  const loadedCount = singleItems.filter((it) => it.file).length;
+  $("#fFileName").textContent =
+    loadedCount === singleItems.length
+      ? singleItems.length + " файл(ов) подгружено по ссылке из черновика"
+      : `${loadedCount} из ${singleItems.length} подгружено по ссылке — остальные нужно прикрепить заново`;
   $("#singleCountInput").value = singleItems.length;
   updateSingleDropZoneVisibility();
   renderSingleCards();
-  renderSinglePreview();
+  await renderSinglePreview();
   updateSingleSaveButtonState();
 }
