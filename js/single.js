@@ -589,12 +589,23 @@ $("#btnDocSave").addEventListener("click", async () => {
    исходный файл заново кнопкой "Прикрепить файл" на карточке.
    ------------------------------------------------------------------------- */
 
-function collectSingleDraftSnapshot() {
+async function collectSingleDraftSnapshot() {
   if (!singleItems.length) return null;
-  return {
-    items: singleItems.map((it) => ({
-      fileName: it.file ? it.file.name : it.draftFileName || null,
-      fileSize: it.file ? it.file.size : it.draftFileSize || null,
+  const items = [];
+  for (const it of singleItems) {
+    let fileBase64 = it.draftFileBase64 || null; // не менялся с момента восстановления — переиспользуем
+    let fileType = it.draftFileType || null;
+    let fileName = it.draftFileName || null;
+    if (it.file) {
+      const buf = await it.file.arrayBuffer();
+      fileBase64 = arrayBufferToBase64(buf);
+      fileType = it.file.type;
+      fileName = it.file.name;
+    }
+    items.push({
+      fileName,
+      fileType,
+      fileBase64,
       doc_type: it.doc_type,
       number: it.number,
       doc_date: it.doc_date,
@@ -603,32 +614,45 @@ function collectSingleDraftSnapshot() {
       comment: it.comment,
       pageRotations: it.pageRotations || {},
       deletedPages: it.deletedPages ? Array.from(it.deletedPages) : [],
-    })),
-  };
+    });
+  }
+  return { items };
 }
 
 function restoreSingleDraftSnapshot(snapshot) {
   if (!snapshot || !snapshot.items || !snapshot.items.length) return;
-  singleItems = snapshot.items.map((it) => ({
-    id: singleNextId++,
-    file: null,
-    draftFileName: it.fileName,
-    draftFileSize: it.fileSize,
-    color: randomGroupColor(singleItems.length),
-    doc_type: it.doc_type || "",
-    number: it.number || "",
-    doc_date: it.doc_date || todayIso(),
-    counterparty: it.counterparty || "",
-    amount: it.amount || "",
-    comment: it.comment || "",
-    pdfDoc: null,
-    numPages: null,
-    previewFailed: false,
-    pageRotations: it.pageRotations || {},
-    deletedPages: new Set(it.deletedPages || []),
-  }));
+  singleItems = snapshot.items.map((it) => {
+    let file = null;
+    if (it.fileBase64) {
+      try {
+        const buf = base64ToArrayBuffer(it.fileBase64);
+        file = new File([buf], it.fileName || "file", { type: it.fileType || "application/octet-stream" });
+      } catch (e) {
+        file = null; // испорченный черновик — не страшно, карточка попросит докрепить файл вручную
+      }
+    }
+    return {
+      id: singleNextId++,
+      file,
+      draftFileName: it.fileName,
+      draftFileBase64: it.fileBase64,
+      draftFileType: it.fileType,
+      color: randomGroupColor(singleItems.length),
+      doc_type: it.doc_type || "",
+      number: it.number || "",
+      doc_date: it.doc_date || todayIso(),
+      counterparty: it.counterparty || "",
+      amount: it.amount || "",
+      comment: it.comment || "",
+      pdfDoc: null,
+      numPages: null,
+      previewFailed: false,
+      pageRotations: it.pageRotations || {},
+      deletedPages: new Set(it.deletedPages || []),
+    };
+  });
   singleSelectedIdx = null;
-  $("#fFileName").textContent = singleItems.length + " файл(ов) из черновика — прикрепите заново";
+  $("#fFileName").textContent = singleItems.length + " файл(ов) восстановлено из черновика";
   $("#singleCountInput").value = singleItems.length;
   updateSingleDropZoneVisibility();
   renderSingleCards();
