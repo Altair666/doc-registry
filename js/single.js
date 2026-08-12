@@ -118,22 +118,28 @@ async function extractDroppedFiles(dataTransfer) {
   if (!dataTransfer) return { handles, files };
 
   if (dataTransfer.items && dataTransfer.items.length) {
-    for (const item of dataTransfer.items) {
-      if (item.kind !== "file") continue;
-      if (typeof item.getAsFileSystemHandle === "function") {
-        try {
-          const handle = await item.getAsFileSystemHandle();
-          if (handle && handle.kind === "file") {
-            handles.push(handle);
-            continue;
-          }
-        } catch (e) {
-          /* браузер не дал ссылку на этот конкретный файл — берём как обычный File ниже */
-        }
+    // ВАЖНО: DataTransferItemList валиден только СИНХРОННО во время
+    // обработки drop-события. Если внутри цикла делать await (например,
+    // await item.getAsFileSystemHandle()), браузер может "обнулить"
+    // список для СЛЕДУЮЩИХ элементов — из-за этого при перетаскивании
+    // нескольких файлов обрабатывался только первый. Поэтому сначала
+    // синхронно (без единого await) собираем и File (getAsFile — уже
+    // синхронный), и промисы getAsFileSystemHandle() (просто запускаем,
+    // не дожидаясь), и только потом ждём все промисы разом.
+    const items = Array.from(dataTransfer.items).filter((item) => item.kind === "file");
+    const plainFilesSync = items.map((item) => (item.getAsFile ? item.getAsFile() : null));
+    const handlePromises = items.map((item) =>
+      typeof item.getAsFileSystemHandle === "function" ? item.getAsFileSystemHandle().catch(() => null) : Promise.resolve(null)
+    );
+    const handleResults = await Promise.all(handlePromises);
+
+    handleResults.forEach((handle, i) => {
+      if (handle && handle.kind === "file") {
+        handles.push(handle);
+      } else if (plainFilesSync[i]) {
+        files.push(plainFilesSync[i]);
       }
-      const f = item.getAsFile ? item.getAsFile() : null;
-      if (f) files.push(f);
-    }
+    });
   } else if (dataTransfer.files && dataTransfer.files.length) {
     files.push(...Array.from(dataTransfer.files));
   }
