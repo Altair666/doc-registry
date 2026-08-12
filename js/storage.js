@@ -193,10 +193,31 @@ function saveConfig() {
   });
 }
 
-/** Черновик формирования документов на экспорт — только описательные
-    метаданные (какие поля заполнены, как разрезан PDF на страницы и
-    т.п.), БЕЗ самих файлов/байтов PDF. Черновик может быть только один
-    на папку — сохранение всегда перезаписывает предыдущий. */
+/** Кодирует ArrayBuffer в base64 — используется, чтобы встроить
+    содержимое файла прямо в черновик (без этого пришлось бы заново
+    прикреплять файлы после восстановления). Работает по кускам, чтобы
+    не упереться в лимит аргументов String.fromCharCode на больших файлах. */
+function arrayBufferToBase64(buffer) {
+  let binary = "";
+  const bytes = new Uint8Array(buffer);
+  const chunkSize = 0x8000;
+  for (let i = 0; i < bytes.length; i += chunkSize) {
+    binary += String.fromCharCode.apply(null, bytes.subarray(i, i + chunkSize));
+  }
+  return btoa(binary);
+}
+
+function base64ToArrayBuffer(base64) {
+  const binary = atob(base64);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+  return bytes.buffer;
+}
+
+/** Черновик формирования документов на экспорт — описательные метаданные
+    ПЛЮС содержимое прикреплённых файлов (base64), чтобы после
+    восстановления ничего не нужно было докреплять заново. Черновик может
+    быть только один на папку — сохранение всегда перезаписывает предыдущий. */
 async function loadDraft() {
   try {
     const fh = await dirHandle.getFileHandle(DRAFT_FILE, { create: false });
