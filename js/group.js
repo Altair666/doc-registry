@@ -739,7 +739,60 @@ $("#btnGroupSave").addEventListener("click", async () => {
 
   await saveState();
   await saveConfig();
+  await deleteDraft();
+  currentDraftExists = false;
+  if (typeof updateDraftButtonsUI === "function") updateDraftButtonsUI();
   saveBtn.textContent = originalLabel;
   $("#modalDoc").classList.remove("open");
   renderTable();
 });
+
+/* -------------------------------------------------------------------------
+   Черновик: сохраняет только описательные метаданные групп (поля,
+   кол-во страниц, какие именно страницы закреплены за группой) — БЕЗ
+   содержимого самого PDF-файла. При восстановлении поля групп
+   заполняются заново, но саму раскладку по страницам придётся повторить
+   вручную после того, как исходный PDF будет прикреплён снова.
+   ------------------------------------------------------------------------- */
+
+function collectGroupDraftSnapshot() {
+  if (!groups.length || !groupPdfBytesForSplit) return null; // без прикреплённого PDF сохранять нечего содержательного
+  return {
+    fileName: $("#groupFileName").textContent || null,
+    totalPages: groupTotalPages,
+    groups: groups.map((g) => ({
+      doc_type: g.doc_type,
+      number: g.number,
+      doc_date: g.doc_date,
+      counterparty: g.counterparty,
+      amount: g.amount,
+      comment: g.comment,
+      pagesCount: g.pagesCount,
+      assignedPages: g.assignedPages || null,
+    })),
+  };
+}
+
+function restoreGroupDraftSnapshot(snapshot) {
+  if (!snapshot || !snapshot.groups || !snapshot.groups.length) return;
+  groups = snapshot.groups.map((sg, i) => ({
+    color: randomGroupColor(i),
+    doc_type: sg.doc_type || "",
+    number: sg.number || "",
+    doc_date: sg.doc_date || todayIso(),
+    counterparty: sg.counterparty || "",
+    amount: sg.amount || "",
+    comment: sg.comment || "",
+    pagesCount: sg.pagesCount || 1,
+    pendingPlacement: null,
+    confirmed: false,
+    assignedPages: null,
+  }));
+  $("#groupCountInput").value = groups.length;
+  renderGroupCards();
+  updateGroupSaveButtonState();
+  alert(
+    `Черновик восстановлен: ${groups.length} групп(ы) с сохранёнными полями. ` +
+      `Прикрепите исходный PDF («${snapshot.fileName || "?"}», ${snapshot.totalPages || "?"} стр.) заново и разместите страницы по группам — сама раскладка по страницам в черновике не хранится.`
+  );
+}
