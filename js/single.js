@@ -98,25 +98,32 @@ async function processSingleFiles(fileList) {
   if (!files.length) return;
   await ensureGroupVendorLoaded(); // тот же pdf.js/pdf-lib, что и в групповом режиме
 
-  singleItems = files.map((file, i) => {
-    const guess = guessFieldsFromFilename(file.name);
-    return {
-      id: singleNextId++,
-      file,
-      color: randomGroupColor(i),
-      doc_type: guess.doc_type || "",
-      number: guess.number || "",
-      doc_date: guess.doc_date || todayIso(),
-      counterparty: "",
-      amount: "",
-      comment: "",
-      pdfDoc: null,
-      numPages: null,
-      previewFailed: false,
-      pageRotations: {},
-      deletedPages: new Set(),
-    };
-  });
+  const hasPending = singleItems.some((it) => !it.file);
+
+  if (!hasPending) {
+    // Обычный случай — начинаем набор карточек заново.
+    singleItems = files.map((file, i) => makeFreshSingleItem(file, i));
+  } else {
+    // Есть карточки из восстановленного черновика, ожидающие файл.
+    // Пробуем сопоставить упавшие файлы с ними по имени — если совпало,
+    // файл "прикрепляется" именно туда, подхватывая сохранённые
+    // настройки, как будто он никуда и не терялся. Несовпавшие файлы
+    // просто добавляются новыми карточками.
+    const leftover = [];
+    files.forEach((file) => {
+      const pendingIdx = singleItems.findIndex((it) => !it.file && it.draftFileName === file.name);
+      if (pendingIdx !== -1) {
+        singleItems[pendingIdx].file = file;
+        singleItems[pendingIdx].pdfDoc = null;
+        singleItems[pendingIdx].previewFailed = false;
+      } else {
+        leftover.push(file);
+      }
+    });
+    leftover.forEach((file) => {
+      singleItems.push(makeFreshSingleItem(file, singleItems.length));
+    });
+  }
   singleSelectedIdx = null;
 
   $("#fFileName").textContent = files.length === 1 ? files[0].name : `${files.length} файлов`;
@@ -127,6 +134,26 @@ async function processSingleFiles(fileList) {
 
   await renderSinglePreview();
   updateSingleSaveButtonState();
+}
+
+function makeFreshSingleItem(file, colorIdx) {
+  const guess = guessFieldsFromFilename(file.name);
+  return {
+    id: singleNextId++,
+    file,
+    color: randomGroupColor(colorIdx),
+    doc_type: guess.doc_type || "",
+    number: guess.number || "",
+    doc_date: guess.doc_date || todayIso(),
+    counterparty: "",
+    amount: "",
+    comment: "",
+    pdfDoc: null,
+    numPages: null,
+    previewFailed: false,
+    pageRotations: {},
+    deletedPages: new Set(),
+  };
 }
 
 /** Пробует по имени файла угадать дату, номер и вид документа — чтобы
@@ -589,23 +616,11 @@ $("#btnDocSave").addEventListener("click", async () => {
    исходный файл заново кнопкой "Прикрепить файл" на карточке.
    ------------------------------------------------------------------------- */
 
-async function collectSingleDraftSnapshot() {
+function collectSingleDraftSnapshot() {
   if (!singleItems.length) return null;
-  const items = [];
-  for (const it of singleItems) {
-    let fileBase64 = it.draftFileBase64 || null; // не менялся с момента восстановления — переиспользуем
-    let fileType = it.draftFileType || null;
-    let fileName = it.draftFileName || null;
-    if (it.file) {
-      const buf = await it.file.arrayBuffer();
-      fileBase64 = arrayBufferToBase64(buf);
-      fileType = it.file.type;
-      fileName = it.file.name;
-    }
-    items.push({
-      fileName,
-      fileType,
-      fileBase64,
+  return {
+    items: singleItems.map((it) => ({
+      fileName: it.file ? it.file.name : it.draftFileName || null,
       doc_type: it.doc_type,
       number: it.number,
       doc_date: it.doc_date,
@@ -614,45 +629,36 @@ async function collectSingleDraftSnapshot() {
       comment: it.comment,
       pageRotations: it.pageRotations || {},
       deletedPages: it.deletedPages ? Array.from(it.deletedPages) : [],
-    });
-  }
-  return { items };
+    })),
+  };
 }
 
+/** Восстанавливает карточки из черновика — без самих файлов, только
+    поля. Карточка ждёт файл с тем же именем: как только он снова
+    попадёт в processSingleFiles (перетаскиванием или через выбор) —
+    "прикрепится" именно к этой карточке автоматически, подхватив все
+    сохранённые настройки, как будто ничего и не терялось. */
 function restoreSingleDraftSnapshot(snapshot) {
   if (!snapshot || !snapshot.items || !snapshot.items.length) return;
-  singleItems = snapshot.items.map((it) => {
-    let file = null;
-    if (it.fileBase64) {
-      try {
-        const buf = base64ToArrayBuffer(it.fileBase64);
-        file = new File([buf], it.fileName || "file", { type: it.fileType || "application/octet-stream" });
-      } catch (e) {
-        file = null; // испорченный черновик — не страшно, карточка попросит докрепить файл вручную
-      }
-    }
-    return {
-      id: singleNextId++,
-      file,
-      draftFileName: it.fileName,
-      draftFileBase64: it.fileBase64,
-      draftFileType: it.fileType,
-      color: randomGroupColor(singleItems.length),
-      doc_type: it.doc_type || "",
-      number: it.number || "",
-      doc_date: it.doc_date || todayIso(),
-      counterparty: it.counterparty || "",
-      amount: it.amount || "",
-      comment: it.comment || "",
-      pdfDoc: null,
-      numPages: null,
-      previewFailed: false,
-      pageRotations: it.pageRotations || {},
-      deletedPages: new Set(it.deletedPages || []),
-    };
-  });
+  singleItems = snapshot.items.map((it) => ({
+    id: singleNextId++,
+    file: null,
+    draftFileName: it.fileName,
+    color: randomGroupColor(singleItems.length),
+    doc_type: it.doc_type || "",
+    number: it.number || "",
+    doc_date: it.doc_date || todayIso(),
+    counterparty: it.counterparty || "",
+    amount: it.amount || "",
+    comment: it.comment || "",
+    pdfDoc: null,
+    numPages: null,
+    previewFailed: false,
+    pageRotations: it.pageRotations || {},
+    deletedPages: new Set(it.deletedPages || []),
+  }));
   singleSelectedIdx = null;
-  $("#fFileName").textContent = singleItems.length + " файл(ов) восстановлено из черновика";
+  $("#fFileName").textContent = singleItems.length + " файл(ов) из черновика — прикрепите их заново (перетащите/выберите те же файлы)";
   $("#singleCountInput").value = singleItems.length;
   updateSingleDropZoneVisibility();
   renderSingleCards();
