@@ -472,6 +472,14 @@ groupDropZone.addEventListener("drop", async (e) => {
 
 async function processGroupFile(file, handle) {
   if (!file) return;
+  if (pendingGroupDraft && pendingGroupDraft.fileName && file.name !== pendingGroupDraft.fileName) {
+    alert(
+      `Черновик ждёт файл «${pendingGroupDraft.fileName}» — приложите файл именно с этим именем, ` +
+        `иначе размещённые/подтверждённые группы не смогут корректно сопоставиться со страницами. ` +
+        `Если хотите начать с другого файла — сначала удалите черновик кнопкой «Удалить черновик».`
+    );
+    return;
+  }
   groupFileHandle = handle || null;
   $("#groupFileName").textContent = file.name;
   await ensureGroupVendorLoaded();
