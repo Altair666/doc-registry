@@ -104,6 +104,7 @@ function resetGroupModeUI() {
   groupConsumedPages = new Set();
   pageStates = {};
   showHiddenPages = false;
+  pendingGroupDraft = null;
 
   $("#groupFile").value = "";
   $("#groupFileName").textContent = "Файл не выбран";
@@ -454,6 +455,25 @@ async function processGroupFile(file) {
   groupTotalPages = groupPdfDoc.numPages;
   for (let p = 1; p <= groupTotalPages; p++) pageStates[p] = { rotation: 0, deleted: false };
 
+  // Если это, судя по всему, тот же файл, что был в черновике (совпало имя
+  // и число страниц) — подхватываем сохранённую разметку автоматически,
+  // как будто файл никуда и не терялся: и состояние страниц, и то, какие
+  // группы уже были подтверждены с какими страницами.
+  if (pendingGroupDraft && pendingGroupDraft.fileName === file.name && pendingGroupDraft.totalPages === groupTotalPages) {
+    for (let p = 1; p <= groupTotalPages; p++) {
+      pageStates[p] = (pendingGroupDraft.pageStates && pendingGroupDraft.pageStates[p]) || { rotation: 0, deleted: false };
+    }
+    groupConsumedPages = new Set(pendingGroupDraft.consumedPages || []);
+    groups.forEach((g, i) => {
+      const sg = pendingGroupDraft.groups[i];
+      if (sg) {
+        g.confirmed = !!sg.confirmed;
+        g.assignedPages = sg.assignedPages || null;
+      }
+    });
+    pendingGroupDraft = null;
+  }
+
   updateGroupDropZoneVisibility();
   await renderGroupPdfPages();
   renderGroupCards();
@@ -755,11 +775,10 @@ $("#btnGroupSave").addEventListener("click", async () => {
    вручную после того, как исходный PDF будет прикреплён снова.
    ------------------------------------------------------------------------- */
 
-async function collectGroupDraftSnapshot() {
+function collectGroupDraftSnapshot() {
   if (!groups.length || !groupPdfBytesForSplit) return null; // без прикреплённого PDF сохранять нечего содержательного
   return {
     fileName: $("#groupFileName").textContent || null,
-    fileBase64: arrayBufferToBase64(groupPdfBytesForSplit),
     totalPages: groupTotalPages,
     pageStates: { ...pageStates },
     consumedPages: Array.from(groupConsumedPages),
@@ -777,55 +796,17 @@ async function collectGroupDraftSnapshot() {
   };
 }
 
-/** Восстанавливает групповой режим целиком: перезагружает встроенный
-    PDF, все страницы (с поворотами/удалениями) и группы — включая уже
-    подтверждённые размещения, которые остаются подтверждёнными и
-    готовыми к экспорту (страницы для них уже "нарезаны" логически,
-    реальная нарезка через pdf-lib происходит при добавлении, как обычно). */
-async function restoreGroupDraftSnapshot(snapshot) {
+/** Черновик, ожидающий, что тот же PDF будет прикреплён заново — как
+    только имя файла и число страниц совпадут, вся разметка (страницы,
+    подтверждённые группы) подхватится автоматически в processGroupFile,
+    без ручного повторного размещения. */
+let pendingGroupDraft = null;
+
+/** Восстанавливает поля групп сразу; саму разметку по страницам
+    подхватит processGroupFile, когда пользователь заново прикрепит тот
+    же исходный PDF (сопоставление по имени файла и числу страниц). */
+function restoreGroupDraftSnapshot(snapshot) {
   if (!snapshot || !snapshot.groups || !snapshot.groups.length) return;
-
-  if (!snapshot.fileBase64) {
-    // старый формат черновика (без встроенного PDF) — восстанавливаем хотя бы поля
-    groups = snapshot.groups.map((sg, i) => ({
-      color: randomGroupColor(i),
-      doc_type: sg.doc_type || "",
-      number: sg.number || "",
-      doc_date: sg.doc_date || todayIso(),
-      counterparty: sg.counterparty || "",
-      amount: sg.amount || "",
-      comment: sg.comment || "",
-      pagesCount: sg.pagesCount || 1,
-      pendingPlacement: null,
-      confirmed: false,
-      assignedPages: null,
-    }));
-    $("#groupCountInput").value = groups.length;
-    renderGroupCards();
-    updateGroupSaveButtonState();
-    alert(`Черновик восстановлен: ${groups.length} групп(ы) с полями. Прикрепите исходный PDF («${snapshot.fileName || "?"}») заново и разместите страницы.`);
-    return;
-  }
-
-  await ensureGroupVendorLoaded();
-  const buf = base64ToArrayBuffer(snapshot.fileBase64);
-  groupPdfBytesForSplit = buf.slice(0);
-  const renderBytes = new Uint8Array(buf.slice(0));
-
-  const loadingTask = window.pdfjsLib.getDocument({ data: renderBytes });
-  groupPdfDoc = await loadingTask.promise;
-  groupTotalPages = groupPdfDoc.numPages;
-
-  pageStates = {};
-  for (let p = 1; p <= groupTotalPages; p++) {
-    pageStates[p] = (snapshot.pageStates && snapshot.pageStates[p]) || { rotation: 0, deleted: false };
-  }
-  groupConsumedPages = new Set(snapshot.consumedPages || []);
-  showHiddenPages = false;
-  $("#btnShowHiddenPages").textContent = "Показать скрытые страницы";
-  $("#btnShowHiddenPages").classList.remove("btn-primary");
-  $("#btnShowHiddenPages").classList.add("btn-secondary");
-
   groups = snapshot.groups.map((sg, i) => ({
     color: randomGroupColor(i),
     doc_type: sg.doc_type || "",
@@ -836,14 +817,15 @@ async function restoreGroupDraftSnapshot(snapshot) {
     comment: sg.comment || "",
     pagesCount: sg.pagesCount || 1,
     pendingPlacement: null,
-    confirmed: !!sg.confirmed,
-    assignedPages: sg.assignedPages || null,
+    confirmed: false, // подтверждённое размещение подхватится автоматически при совпадении файла
+    assignedPages: null,
   }));
-
-  $("#groupFileName").textContent = snapshot.fileName || "восстановлено из черновика";
-  updateGroupDropZoneVisibility();
+  pendingGroupDraft = snapshot;
   $("#groupCountInput").value = groups.length;
   renderGroupCards();
-  await renderGroupPdfPages();
   updateGroupSaveButtonState();
+  alert(
+    `Черновик восстановлен: ${groups.length} групп(ы) с полями. Прикрепите исходный PDF («${snapshot.fileName || "?"}», ${snapshot.totalPages || "?"} стр.) заново — ` +
+      `если это тот же файл, разметка по страницам (включая уже подтверждённые группы) подхватится автоматически.`
+  );
 }
