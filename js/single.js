@@ -146,6 +146,38 @@ async function extractDroppedFiles(dataTransfer) {
   return { handles, files };
 }
 
+/** Докрепляет файл из dataTransfer к конкретной карточке (idx). Если у
+    карточки есть draftFileName (она из черновика) — принимает только
+    файл с ТЕМ ЖЕ именем, иначе отказывает с понятным сообщением. */
+async function attachDroppedFileToItem(idx, dataTransfer) {
+  const it = singleItems[idx];
+  if (!it) return;
+  const { handles, files } = await extractDroppedFiles(dataTransfer);
+  let file = null;
+  let handle = null;
+  if (handles.length) {
+    handle = handles[0];
+    try {
+      file = await handle.getFile();
+    } catch (err) {
+      handle = null;
+    }
+  }
+  if (!file && files.length) file = files[0];
+  if (!file) return;
+  if (it.draftFileName && file.name !== it.draftFileName) {
+    alert(`Эта карточка ждёт файл «${it.draftFileName}» — приложите файл именно с этим именем.`);
+    return;
+  }
+  it.file = file;
+  it.fileHandle = handle;
+  it.pdfDoc = null;
+  it.previewFailed = false;
+  renderSingleCards();
+  if (singleSelectedIdx === idx) await renderSinglePreview();
+  updateSingleSaveButtonState();
+}
+
 async function processSingleFileHandles(handles) {
   const pairs = [];
   for (const handle of handles || []) {
@@ -386,29 +418,8 @@ function wireSingleCardEvents() {
       e.preventDefault();
       e.stopPropagation();
       card.classList.remove("drop-active");
-      const { handles, files } = await extractDroppedFiles(e.dataTransfer);
-      let file = null;
-      let handle = null;
-      if (handles.length) {
-        handle = handles[0];
-        try {
-          file = await handle.getFile();
-        } catch (err) {
-          handle = null;
-        }
-      }
-      if (!file && files.length) file = files[0];
-      if (!file) return;
       const idx = Number(card.dataset.single);
-      const it = singleItems[idx];
-      if (!it) return;
-      it.file = file;
-      it.fileHandle = handle;
-      it.pdfDoc = null;
-      it.previewFailed = false;
-      renderSingleCards();
-      if (singleSelectedIdx === idx) await renderSinglePreview();
-      updateSingleSaveButtonState();
+      await attachDroppedFileToItem(idx, e.dataTransfer);
     });
   });
 
@@ -551,10 +562,66 @@ async function renderSinglePreview() {
   $("#singlePreviewLabel").textContent = it.file ? it.file.name : `${it.draftFileName || "без файла"} (из черновика)`;
 
   if (!it.file) {
+    const idx = singleSelectedIdx;
     const wrap = document.createElement("div");
-    wrap.className = "pdf-page";
-    wrap.innerHTML = `<div class="pdf-page-label">${escapeHtml(it.draftFileName || "Файл не прикреплён")}</div><p class="muted" style="padding:16px 4px">Это карточка из черновика — прикрепите исходный файл заново кнопкой «Прикрепить файл» на карточке слева, тогда появится превью.</p>`;
+    wrap.className = "pdf-page single-missing-file-preview";
+    wrap.innerHTML = `
+      <div class="pdf-page-label">${escapeHtml(it.draftFileName || "Файл не прикреплён")}</div>
+      <div class="single-missing-file-preview-body">
+        <p class="muted">Файл из черновика ещё не загружен. Перетащите его сюда${it.draftFileName ? ` (имя должно совпадать: «${escapeHtml(it.draftFileName)}»)` : ""} или выберите вручную.</p>
+        <div class="single-missing-file-preview-actions">
+          ${it.fileHandle ? `<button type="button" class="btn btn-primary btn-small" data-preview-load-link>Загрузить по ссылке</button>` : ""}
+          <button type="button" class="btn btn-secondary btn-small" data-preview-attach>Прикрепить файл</button>
+        </div>
+      </div>`;
     area.appendChild(wrap);
+
+    wrap.addEventListener("dragover", (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      wrap.classList.add("drop-active");
+    });
+    wrap.addEventListener("dragleave", (e) => {
+      if (e.target === wrap) wrap.classList.remove("drop-active");
+    });
+    wrap.addEventListener("drop", async (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      wrap.classList.remove("drop-active");
+      await attachDroppedFileToItem(idx, e.dataTransfer);
+    });
+
+    const attachBtn = wrap.querySelector("[data-preview-attach]");
+    if (attachBtn) {
+      attachBtn.addEventListener("click", () => {
+        singleReattachTargetIdx = idx;
+        $("#singleReattachFile").click();
+      });
+    }
+    const loadLinkBtn = wrap.querySelector("[data-preview-load-link]");
+    if (loadLinkBtn) {
+      loadLinkBtn.addEventListener("click", async () => {
+        loadLinkBtn.disabled = true;
+        loadLinkBtn.textContent = "Загрузка…";
+        try {
+          const ok = await verifyPermission(it.fileHandle, false);
+          if (ok) {
+            it.file = await it.fileHandle.getFile();
+            it.pdfDoc = null;
+            it.previewFailed = false;
+            renderSingleCards();
+            await renderSinglePreview();
+            updateSingleSaveButtonState();
+            return;
+          }
+          alert("Доступ к файлу не подтверждён — прикрепите его вручную.");
+        } catch (err) {
+          alert("Не удалось загрузить файл по сохранённой ссылке — прикрепите его вручную.");
+        }
+        loadLinkBtn.disabled = false;
+        loadLinkBtn.textContent = "Загрузить по ссылке";
+      });
+    }
     return;
   }
 
@@ -832,7 +899,7 @@ async function restoreSingleDraftSnapshot(snapshot) {
         const handle = await idbGet("draftSingleHandle:" + i);
         if (handle) {
           item.fileHandle = handle;
-          const ok = await verifyPermissionSilent(handle);
+          const ok = await verifyPermissionSilent(handle, "read");
           if (ok) {
             item.file = await handle.getFile();
           }
