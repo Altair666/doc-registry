@@ -380,6 +380,26 @@ label:has(.file-input-hidden) { cursor: pointer; }
 .group-card.single-card-missing-file.drop-active { border-color: var(--primary); background: #eef3ff; }
 .single-missing-file-hint { font-size: 12px; margin: 4px 0 8px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 
+.single-missing-file-preview {
+  min-height: 220px;
+  display: flex;
+  flex-direction: column;
+  border: 2px dashed var(--border);
+  transition: border-color 0.15s, background 0.15s;
+}
+.single-missing-file-preview.drop-active { border-color: var(--primary); background: #eef3ff; }
+.single-missing-file-preview-body {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  text-align: center;
+  padding: 20px;
+}
+.single-missing-file-preview-actions { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; }
+
 .single-status {
   width: 26px;
   height: 26px;
