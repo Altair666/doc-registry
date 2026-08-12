@@ -43,28 +43,46 @@ $("#btnShowHiddenPages").addEventListener("click", () => {
    Ленивая подгрузка pdf.js / pdf-lib — только когда реально понадобились
    ------------------------------------------------------------------------- */
 
+const scriptLoadPromises = {};
 function loadScriptOnce(src) {
-  return new Promise((resolve, reject) => {
-    if (document.querySelector(`script[src="${src}"]`)) return resolve();
+  if (scriptLoadPromises[src]) return scriptLoadPromises[src];
+  scriptLoadPromises[src] = new Promise((resolve, reject) => {
+    if (document.querySelector(`script[src="${src}"]`)) {
+      // Тег уже есть в DOM — либо давно загружен, либо параллельный
+      // вызов уже вставил его (тогда за его загрузкой следит именно
+      // этот кэшированный промис, а не отдельная проверка).
+      resolve();
+      return;
+    }
     const s = document.createElement("script");
     s.src = src;
     s.onload = () => resolve();
-    s.onerror = () => reject(new Error("Не удалось загрузить " + src));
+    s.onerror = () => {
+      delete scriptLoadPromises[src]; // разрешаем повторную попытку при следующем вызове
+      reject(new Error("Не удалось загрузить " + src));
+    };
     document.head.appendChild(s);
   });
+  return scriptLoadPromises[src];
 }
 
-async function ensureGroupVendorLoaded() {
-  if (groupVendorLoaded) return;
-  $("#groupLoadingHint").style.display = "block";
-  try {
-    await loadScriptOnce("js/vendor/pdf-lib.min.js");
-    await loadScriptOnce("js/vendor/pdf.min.js");
-    window.pdfjsLib.GlobalWorkerOptions.workerSrc = "js/vendor/pdf.worker.min.js";
-    groupVendorLoaded = true;
-  } finally {
-    $("#groupLoadingHint").style.display = "none";
-  }
+let vendorLoadPromise = null;
+function ensureGroupVendorLoaded() {
+  if (groupVendorLoaded) return Promise.resolve();
+  if (vendorLoadPromise) return vendorLoadPromise; // уже грузится — переиспользуем тот же промис, не запускаем повторно
+  vendorLoadPromise = (async () => {
+    $("#groupLoadingHint").style.display = "block";
+    try {
+      await loadScriptOnce("js/vendor/pdf-lib.min.js");
+      await loadScriptOnce("js/vendor/pdf.min.js");
+      window.pdfjsLib.GlobalWorkerOptions.workerSrc = "js/vendor/pdf.worker.min.js";
+      groupVendorLoaded = true;
+    } finally {
+      $("#groupLoadingHint").style.display = "none";
+      vendorLoadPromise = null;
+    }
+  })();
+  return vendorLoadPromise;
 }
 
 /* -------------------------------------------------------------------------
