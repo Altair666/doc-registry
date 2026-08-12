@@ -265,6 +265,33 @@ function wireSingleCardEvents() {
     });
   });
 
+  // Карточку без файла (жёлтую, из черновика) можно не только докрепить
+  // через диалог, но и перетащить файл прямо на неё.
+  list.querySelectorAll(".single-card-missing-file").forEach((card) => {
+    card.addEventListener("dragover", (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      card.classList.add("drop-active");
+    });
+    card.addEventListener("dragleave", () => card.classList.remove("drop-active"));
+    card.addEventListener("drop", async (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      card.classList.remove("drop-active");
+      const file = e.dataTransfer.files && e.dataTransfer.files[0];
+      if (!file) return;
+      const idx = Number(card.dataset.single);
+      const it = singleItems[idx];
+      if (!it) return;
+      it.file = file;
+      it.pdfDoc = null;
+      it.previewFailed = false;
+      renderSingleCards();
+      if (singleSelectedIdx === idx) await renderSinglePreview();
+      updateSingleSaveButtonState();
+    });
+  });
+
   list.querySelectorAll("[data-single-field]").forEach((el) => {
     const evt = el.tagName === "SELECT" || el.type === "date" ? "change" : "input";
     el.addEventListener(evt, () => {
