@@ -301,47 +301,58 @@ wireFileNameDisplay("advanceFile", "advanceFileName");
 let currentDraftExists = false;
 
 function updateDraftButtonsUI() {
-  $("#btnSaveDraft").style.display = currentDraftExists ? "none" : "";
-  $("#btnDeleteDraft").style.display = currentDraftExists ? "" : "none";
+  $$(".js-save-draft-btn").forEach((btn) => {
+    btn.style.display = currentDraftExists ? "none" : "";
+  });
+  $$(".js-delete-draft-btn").forEach((btn) => {
+    btn.style.display = currentDraftExists ? "" : "none";
+  });
 }
 
-$("#btnSaveDraft").addEventListener("click", async () => {
-  const mode = $(".mode-toggle-btn.active")?.dataset.mode || "single";
-  const btn = $("#btnSaveDraft");
-  const originalLabel = btn.textContent;
-  btn.disabled = true;
-  btn.textContent = "Сохранение…";
-  try {
-    let snapshot = null;
-    if (mode === "single" && typeof collectSingleDraftSnapshot === "function") {
-      snapshot = await collectSingleDraftSnapshot();
-    } else if (mode === "group" && typeof collectGroupDraftSnapshot === "function") {
-      snapshot = await collectGroupDraftSnapshot();
+$$(".js-save-draft-btn").forEach((btn) => {
+  btn.addEventListener("click", async () => {
+    const mode = $(".mode-toggle-btn.active")?.dataset.mode || "single";
+    const allSaveBtns = $$(".js-save-draft-btn");
+    allSaveBtns.forEach((b) => {
+      b.disabled = true;
+      b.textContent = "Сохранение…";
+    });
+    try {
+      let snapshot = null;
+      if (mode === "single" && typeof collectSingleDraftSnapshot === "function") {
+        snapshot = await collectSingleDraftSnapshot();
+      } else if (mode === "group" && typeof collectGroupDraftSnapshot === "function") {
+        snapshot = await collectGroupDraftSnapshot();
+      }
+      if (!snapshot) {
+        alert(
+          mode === "group"
+            ? "Нечего сохранять — сначала прикрепите PDF и заполните хотя бы одну группу."
+            : "Нечего сохранять — сначала добавьте хотя бы один файл."
+        );
+        return;
+      }
+      snapshot.mode = mode;
+      snapshot.savedAt = nowIso();
+      await saveDraft(snapshot);
+      currentDraftExists = true;
+      updateDraftButtonsUI();
+    } finally {
+      allSaveBtns.forEach((b) => {
+        b.disabled = false;
+        b.textContent = "Сохранить черновик";
+      });
     }
-    if (!snapshot) {
-      alert(
-        mode === "group"
-          ? "Нечего сохранять — сначала прикрепите PDF и заполните хотя бы одну группу."
-          : "Нечего сохранять — сначала добавьте хотя бы один файл."
-      );
-      return;
-    }
-    snapshot.mode = mode;
-    snapshot.savedAt = nowIso();
-    await saveDraft(snapshot);
-    currentDraftExists = true;
-    updateDraftButtonsUI();
-  } finally {
-    btn.disabled = false;
-    btn.textContent = originalLabel;
-  }
+  });
 });
 
-$("#btnDeleteDraft").addEventListener("click", async () => {
-  if (!confirm("Удалить сохранённый черновик?")) return;
-  await deleteDraft();
-  currentDraftExists = false;
-  updateDraftButtonsUI();
+$$(".js-delete-draft-btn").forEach((btn) => {
+  btn.addEventListener("click", async () => {
+    if (!confirm("Удалить сохранённый черновик?")) return;
+    await deleteDraft();
+    currentDraftExists = false;
+    updateDraftButtonsUI();
+  });
 });
 
 $("#btnAdd").addEventListener("click", async () => {
