@@ -517,6 +517,7 @@ function isPdfFile(file) {
 async function ensurePdfLoadedForItem(it) {
   if (it.pdfDoc || it.previewFailed || !isPdfFile(it.file)) return;
   try {
+    await ensureGroupVendorLoaded(); // на случай, если файл подгрузился в обход обычного processSingleFiles (например, по ссылке из черновика)
     const buf = await it.file.arrayBuffer();
     const loadingTask = window.pdfjsLib.getDocument({ data: new Uint8Array(buf) });
     it.pdfDoc = await loadingTask.promise;
