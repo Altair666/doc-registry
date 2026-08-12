@@ -98,9 +98,9 @@ async function verifyPermission(handle, readwrite) {
   return false;
 }
 
-async function verifyPermissionSilent(handle) {
+async function verifyPermissionSilent(handle, mode) {
   try {
-    return (await handle.queryPermission({ mode: "readwrite" })) === "granted";
+    return (await handle.queryPermission({ mode: mode || "readwrite" })) === "granted";
   } catch (e) {
     return false;
   }
