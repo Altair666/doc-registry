@@ -124,6 +124,7 @@ function resetGroupModeUI() {
   showHiddenPages = false;
   pendingGroupDraft = null;
   groupFileHandle = null;
+  $("#groupDropZoneExpectedFile").style.display = "none";
 
   $("#groupFile").value = "";
   $("#groupFileName").textContent = "Файл не выбран";
@@ -542,6 +543,7 @@ async function processGroupFile(file, handle) {
     pendingGroupDraft = null;
   }
 
+  $("#groupDropZoneExpectedFile").style.display = "none";
   updateGroupDropZoneVisibility();
   await renderGroupPdfPages();
   renderGroupCards();
@@ -904,7 +906,7 @@ async function restoreGroupDraftSnapshot(snapshot) {
     try {
       const handle = await idbGet("draftGroupHandle");
       if (handle) {
-        const ok = await verifyPermissionSilent(handle);
+        const ok = await verifyPermissionSilent(handle, "read");
         if (ok) {
           const file = await handle.getFile();
           await processGroupFile(file, handle);
@@ -920,4 +922,9 @@ async function restoreGroupDraftSnapshot(snapshot) {
     `Черновик восстановлен: ${groups.length} групп(ы) с полями. Прикрепите исходный PDF («${snapshot.fileName || "?"}», ${snapshot.totalPages || "?"} стр.) заново — ` +
       `если это тот же файл, разметка по страницам (включая уже подтверждённые группы) подхватится автоматически.`
   );
+  const hint = $("#groupDropZoneExpectedFile");
+  if (hint && snapshot.fileName) {
+    hint.textContent = `Ожидается файл из черновика: «${snapshot.fileName}»`;
+    hint.style.display = "block";
+  }
 }
