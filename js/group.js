@@ -209,7 +209,7 @@ function renderGroupCards() {
         config.counterparties.map((c) => `<option value="${escapeHtml(c)}" ${c === g.counterparty ? "selected" : ""}>${escapeHtml(c)}</option>`).join("");
       const badgeLabel = g.doc_type ? escapeHtml(buildDocLabel(g)) : String(idx + 1);
       return `
-      <div class="group-card" data-group="${idx}">
+      <div class="group-card${g.confirmed ? " group-card-filled" : ""}" data-group="${idx}">
         <div class="group-card-header">
           <span class="group-badge${isGroupDataFilled(g) ? " filled" : ""}${g.confirmed ? " confirmed" : ""}"
                 data-badge="${idx}" draggable="true" style="background:${g.color}" title="Перетащите на страницу справа">${badgeLabel}</span>
@@ -385,13 +385,18 @@ function confirmGroupPlacement(idx) {
     alert("Сначала перетащите бейдж этой группы на нужную страницу справа.");
     return;
   }
-  g.pendingPlacement.forEach((p) => {
-    groupConsumedPages.add(p);
-    removePageFromDom(p); // страница уходит из общего пула — остальные не трогаем
-  });
-  g.assignedPages = g.pendingPlacement;
+  const pages = g.pendingPlacement;
+  g.assignedPages = pages;
   g.confirmed = true;
   g.pendingPlacement = null;
+  pages.forEach((p) => {
+    groupConsumedPages.add(p);
+    if (showHiddenPages) {
+      rerenderPageInPlace(p); // остаётся видна, но уже с бейджем группы вместо кнопок
+    } else {
+      removePageFromDom(p); // страница уходит из общего пула — остальные не трогаем
+    }
+  });
   renderGroupCards();
   updateGroupSaveButtonState();
 }
@@ -401,11 +406,13 @@ async function resetGroupPlacement(idx) {
   if (g.confirmed && g.assignedPages) {
     const pagesToRestore = g.assignedPages;
     pagesToRestore.forEach((p) => groupConsumedPages.delete(p));
-    // Вставляем строго по очереди (дожидаясь каждую) — параллельные async-
-    // вызовы делят один и тот же токен отмены рендера и гасили бы друг
-    // друга, из-за чего часть страниц не возвращалась в пул.
+    // Строго по очереди (дожидаясь каждую) — параллельные async-вызовы
+    // делят один и тот же токен отмены рендера и гасили бы друг друга.
+    // rerenderPageInPlace сама решает, заменить существующий элемент
+    // (страница могла быть видна с бейджем при показанных скрытых) или
+    // вставить новый — без риска задвоить страницу в списке.
     for (const p of pagesToRestore) {
-      await insertPageIntoDom(p);
+      await rerenderPageInPlace(p);
     }
   }
   if (g.pendingPlacement) clearPendingOverlaysForGroup(idx);
@@ -555,16 +562,30 @@ let groupPdfRenderToken = 0;
 /** Строит полностью готовый (с отрисованным канвасом и навешанными
     обработчиками) DOM-элемент одной страницы. Не вставляет его никуда —
     решение о позиции принимает вызывающий код. */
+/** Находит подтверждённую группу, которой принадлежит страница (или
+    null, если страница свободна/удалена). */
+function findConsumedGroupForPage(p) {
+  return groups.find((g) => g.confirmed && g.assignedPages && g.assignedPages.includes(p)) || null;
+}
+
 async function buildPageElement(p) {
   const st = getPageState(p);
+  const consumedGroup = groupConsumedPages.has(p) ? findConsumedGroupForPage(p) : null;
 
   const pageWrap = document.createElement("div");
-  pageWrap.className = "pdf-page" + (st.deleted ? " pdf-page-deleted" : "");
+  pageWrap.className = "pdf-page" + (st.deleted ? " pdf-page-deleted" : "") + (consumedGroup ? " pdf-page-consumed" : "");
   pageWrap.dataset.page = String(p);
 
   const actions = document.createElement("div");
   actions.className = "pdf-page-actions";
-  if (st.deleted) {
+  if (consumedGroup) {
+    // Страница уже разрезана и закреплена за подтверждённой группой —
+    // показываем её бейдж (тот же кружок с цветом/названием, что и на
+    // карточке группы) вместо кнопок — редактировать её тут нельзя,
+    // это делается через карточку группы (сброс размещения).
+    const badgeLabel = consumedGroup.doc_type ? buildDocLabel(consumedGroup) : "Группа";
+    actions.innerHTML = `<span class="group-badge-mini" style="background:${consumedGroup.color}" title="${escapeHtml(badgeLabel)}">${escapeHtml(badgeLabel)}</span>`;
+  } else if (st.deleted) {
     actions.innerHTML = `<button type="button" class="pdf-page-btn pdf-page-btn-restore" data-restore="${p}" title="Вернуть страницу">Вернуть</button>`;
   } else {
     actions.innerHTML =
@@ -577,7 +598,7 @@ async function buildPageElement(p) {
   pageWrap.appendChild(canvas);
   const label = document.createElement("div");
   label.className = "pdf-page-label";
-  label.textContent = "Стр. " + p + (st.deleted ? " (удалена)" : "");
+  label.textContent = "Стр. " + p + (st.deleted ? " (удалена)" : consumedGroup ? " (в документе)" : "");
   pageWrap.appendChild(label);
 
   const page = await groupPdfDoc.getPage(p);
@@ -619,7 +640,7 @@ async function buildPageElement(p) {
     });
   }
 
-  if (!st.deleted) wirePageDropzone(pageWrap, p);
+  if (!st.deleted && !consumedGroup) wirePageDropzone(pageWrap, p);
   return pageWrap;
 }
 
@@ -692,7 +713,8 @@ async function renderGroupPdfPages() {
 
   for (let p = 1; p <= groupTotalPages; p++) {
     if (myToken !== groupPdfRenderToken) return; // подоспел более новый вызов — этот бросаем
-    if (groupConsumedPages.has(p)) continue;
+    const consumed = groupConsumedPages.has(p);
+    if (consumed && !showHiddenPages) continue;
     const st = getPageState(p);
     if (st.deleted && !showHiddenPages) continue;
 
