@@ -307,25 +307,34 @@ function updateDraftButtonsUI() {
 
 $("#btnSaveDraft").addEventListener("click", async () => {
   const mode = $(".mode-toggle-btn.active")?.dataset.mode || "single";
-  let snapshot = null;
-  if (mode === "single" && typeof collectSingleDraftSnapshot === "function") {
-    snapshot = collectSingleDraftSnapshot();
-  } else if (mode === "group" && typeof collectGroupDraftSnapshot === "function") {
-    snapshot = collectGroupDraftSnapshot();
+  const btn = $("#btnSaveDraft");
+  const originalLabel = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = "Сохранение…";
+  try {
+    let snapshot = null;
+    if (mode === "single" && typeof collectSingleDraftSnapshot === "function") {
+      snapshot = await collectSingleDraftSnapshot();
+    } else if (mode === "group" && typeof collectGroupDraftSnapshot === "function") {
+      snapshot = await collectGroupDraftSnapshot();
+    }
+    if (!snapshot) {
+      alert(
+        mode === "group"
+          ? "Нечего сохранять — сначала прикрепите PDF и заполните хотя бы одну группу."
+          : "Нечего сохранять — сначала добавьте хотя бы один файл."
+      );
+      return;
+    }
+    snapshot.mode = mode;
+    snapshot.savedAt = nowIso();
+    await saveDraft(snapshot);
+    currentDraftExists = true;
+    updateDraftButtonsUI();
+  } finally {
+    btn.disabled = false;
+    btn.textContent = originalLabel;
   }
-  if (!snapshot) {
-    alert(
-      mode === "group"
-        ? "Нечего сохранять — сначала прикрепите PDF и заполните хотя бы одну группу."
-        : "Нечего сохранять — сначала добавьте хотя бы один файл."
-    );
-    return;
-  }
-  snapshot.mode = mode;
-  snapshot.savedAt = nowIso();
-  await saveDraft(snapshot);
-  currentDraftExists = true;
-  updateDraftButtonsUI();
 });
 
 $("#btnDeleteDraft").addEventListener("click", async () => {
@@ -355,7 +364,7 @@ $("#btnAdd").addEventListener("click", async () => {
       if (draft.mode === "single" && typeof restoreSingleDraftSnapshot === "function") {
         restoreSingleDraftSnapshot(draft);
       } else if (draft.mode === "group" && typeof restoreGroupDraftSnapshot === "function") {
-        restoreGroupDraftSnapshot(draft);
+        await restoreGroupDraftSnapshot(draft);
       }
     }
   }
