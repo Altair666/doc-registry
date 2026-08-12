@@ -506,6 +506,8 @@ function updateSingleSaveButtonState() {
 
 function selectSingleItem(idx) {
   singleSelectedIdx = idx;
+  const it = singleItems[idx];
+  if (it && !it.pdfDoc) it.previewFailed = false; // даём ещё одну попытку при каждом клике
   $$(".single-card").forEach((c) => c.classList.toggle("single-card-selected", Number(c.dataset.single) === idx));
   renderSinglePreview();
 }
