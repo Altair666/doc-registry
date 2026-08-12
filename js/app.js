@@ -291,11 +291,74 @@ function wireFileNameDisplay(inputId, nameId) {
 }
 wireFileNameDisplay("advanceFile", "advanceFileName");
 
-$("#btnAdd").addEventListener("click", () => {
+/* -------------------------------------------------------------------------
+   Черновик формирования документов — сохраняет только описательные
+   метаданные (какие поля заполнены, как разрезан PDF на страницы и т.п.),
+   БЕЗ содержимого самих файлов. Черновик может быть только один — при
+   сохранении нового старый перезаписывается; при удачном экспорте всех
+   документов черновик автоматически удаляется (см. single.js/group.js).
+   ------------------------------------------------------------------------- */
+let currentDraftExists = false;
+
+function updateDraftButtonsUI() {
+  $("#btnSaveDraft").style.display = currentDraftExists ? "none" : "";
+  $("#btnDeleteDraft").style.display = currentDraftExists ? "" : "none";
+}
+
+$("#btnSaveDraft").addEventListener("click", async () => {
+  const mode = $(".mode-toggle-btn.active")?.dataset.mode || "single";
+  let snapshot = null;
+  if (mode === "single" && typeof collectSingleDraftSnapshot === "function") {
+    snapshot = collectSingleDraftSnapshot();
+  } else if (mode === "group" && typeof collectGroupDraftSnapshot === "function") {
+    snapshot = collectGroupDraftSnapshot();
+  }
+  if (!snapshot) {
+    alert(
+      mode === "group"
+        ? "Нечего сохранять — сначала прикрепите PDF и заполните хотя бы одну группу."
+        : "Нечего сохранять — сначала добавьте хотя бы один файл."
+    );
+    return;
+  }
+  snapshot.mode = mode;
+  snapshot.savedAt = nowIso();
+  await saveDraft(snapshot);
+  currentDraftExists = true;
+  updateDraftButtonsUI();
+});
+
+$("#btnDeleteDraft").addEventListener("click", async () => {
+  if (!confirm("Удалить сохранённый черновик?")) return;
+  await deleteDraft();
+  currentDraftExists = false;
+  updateDraftButtonsUI();
+});
+
+$("#btnAdd").addEventListener("click", async () => {
   $("#modalDoc").dataset.mode = "create";
   $("#modalDoc").classList.add("open");
   if (typeof resetGroupModeUI === "function") resetGroupModeUI();
   if (typeof resetSingleModeUI === "function") resetSingleModeUI();
+
+  const draft = await loadDraft();
+  currentDraftExists = !!draft;
+  updateDraftButtonsUI();
+
+  if (draft) {
+    const when = draft.savedAt ? new Date(draft.savedAt).toLocaleString("ru-RU") : "неизвестно когда";
+    const modeLabel = draft.mode === "group" ? "Разбить PDF на документы" : "Отдельные файлы";
+    const restore = confirm(`Найден сохранённый черновик от ${when} (режим «${modeLabel}»). Восстановить его?`);
+    if (restore) {
+      const targetBtn = document.querySelector(`.mode-toggle-btn[data-mode="${draft.mode}"]`);
+      if (targetBtn) targetBtn.click();
+      if (draft.mode === "single" && typeof restoreSingleDraftSnapshot === "function") {
+        restoreSingleDraftSnapshot(draft);
+      } else if (draft.mode === "group" && typeof restoreGroupDraftSnapshot === "function") {
+        restoreGroupDraftSnapshot(draft);
+      }
+    }
+  }
 });
 
 $("#btnDocCancel").addEventListener("click", () => $("#modalDoc").classList.remove("open"));
