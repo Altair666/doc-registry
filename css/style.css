@@ -49,6 +49,13 @@ main { padding: 20px 28px 60px; }
 .btn-danger:hover { background: #f9caca; }
 .btn-small { padding: 6px 10px; font-size: 13px; }
 .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.btn-draft {
+  background: #fdecd8;
+  color: #b9660a;
+  min-width: 168px;
+  text-align: center;
+}
+.btn-draft:hover { background: #fbdfb8; }
 
 .registry-table, .files-table {
   border-collapse: collapse;
