@@ -11,6 +11,7 @@
 
 const REGISTRY_FILE = "registry.json";
 const CONFIG_FILE = "config.json";
+const DRAFT_FILE = "draft.json";
 const DB_NAME = "doc-registry-fsa";
 const DB_STORE = "handles";
 const HANDLE_KEY = "rootDir";
@@ -189,6 +190,39 @@ function saveConfig() {
     const writable = await fh.createWritable();
     await writable.write(JSON.stringify(config, null, 2));
     await writable.close();
+  });
+}
+
+/** Черновик формирования документов на экспорт — только описательные
+    метаданные (какие поля заполнены, как разрезан PDF на страницы и
+    т.п.), БЕЗ самих файлов/байтов PDF. Черновик может быть только один
+    на папку — сохранение всегда перезаписывает предыдущий. */
+async function loadDraft() {
+  try {
+    const fh = await dirHandle.getFileHandle(DRAFT_FILE, { create: false });
+    const file = await fh.getFile();
+    return JSON.parse(await file.text());
+  } catch (e) {
+    return null;
+  }
+}
+
+function saveDraft(draft) {
+  return queueSave(async () => {
+    const fh = await dirHandle.getFileHandle(DRAFT_FILE, { create: true });
+    const writable = await fh.createWritable();
+    await writable.write(JSON.stringify(draft, null, 2));
+    await writable.close();
+  });
+}
+
+function deleteDraft() {
+  return queueSave(async () => {
+    try {
+      await dirHandle.removeEntry(DRAFT_FILE);
+    } catch (e) {
+      /* черновика и так не было — не страшно */
+    }
   });
 }
 
