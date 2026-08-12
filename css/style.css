@@ -369,6 +369,8 @@ label:has(.file-input-hidden) { cursor: pointer; }
 .group-card { border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px; background: var(--panel); transition: background 0.15s, border-color 0.15s; }
 .group-card.group-card-filled,
 .group-card.single-card-filled { background: #eafcf1; border-color: #16a34a; }
+.group-card.single-card-missing-file { background: #fff8e6; border-color: #e0a92a; }
+.single-missing-file-hint { font-size: 12px; margin: 4px 0 8px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 
 .single-status {
   width: 26px;
